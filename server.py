@@ -82,11 +82,19 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
+        remainder = b""
         while True:
-            line = resp.readline()
-            if not line:
+            chunk = resp.read(4096)
+            if not chunk:
+                if remainder:
+                    self.wfile.write(remainder)
+                    self.wfile.flush()
                 break
-            self.wfile.write(line)
+            data = remainder + chunk
+            lines = data.split(b"\n")
+            remainder = lines[-1]
+            for line in lines[:-1]:
+                self.wfile.write(line + b"\n")
             self.wfile.flush()
 
     def do_OPTIONS(self):
@@ -95,11 +103,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, x-api-key, anthropic-version")
         self.end_headers()
-
-    def end_headers(self):
-        if not any(h[0].lower() == "access-control-allow-origin" for h in self._headers_buffer if isinstance(h, tuple)):
-            pass  # already set by caller
-        super().end_headers()
 
 
 if __name__ == "__main__":
