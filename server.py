@@ -8,15 +8,37 @@ import urllib.error
 PORT = 9090
 STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
 API_TARGET = "https://open.bigmodel.cn/api/anthropic/v1/messages"
+KEY_FILE = os.path.join(STATIC_DIR, ".api_key_cache")
+
+
+def _read_cache():
+    try:
+        with open(KEY_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _write_cache(data):
+    with open(KEY_FILE, "w") as f:
+        json.dump(data, f)
 
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
 
+    def do_GET(self):
+        if self.path == "/api/cache":
+            self._send_cache()
+        else:
+            super().do_GET()
+
     def do_POST(self):
         if self.path == "/api/messages":
             self._proxy_api()
+        elif self.path == "/api/cache":
+            self._save_cache()
         else:
             self.send_error(405)
 
@@ -96,6 +118,33 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             for line in lines[:-1]:
                 self.wfile.write(line + b"\n")
             self.wfile.flush()
+
+    def _send_cache(self):
+        data = _read_cache()
+        body = json.dumps(data).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _save_cache(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length else b""
+        try:
+            data = json.loads(body)
+            _write_cache(data)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+        except Exception as e:
+            self.send_response(400)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(str(e).encode())
 
     def do_OPTIONS(self):
         self.send_response(204)
