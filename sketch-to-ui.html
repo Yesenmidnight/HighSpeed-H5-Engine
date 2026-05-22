@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sketch → UI | 草图美化器</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0a0a12;--surface:#111120;--surface2:#191930;--border:#2a2a48;--text:#e0e0f0;--text2:#7878a0;--accent:#6366f1;--accent2:#818cf8;--success:#22c55e;--error:#ef4444;--radius:8px}
@@ -87,6 +88,22 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 .toast.error{background:#3b1111;border:1px solid #7f1d1d;color:#fca5a5}
 .toast.info{background:#1e1b4b;border:1px solid #312e81;color:#a5b4fc}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* Context Menu */
+.ctx-menu{position:fixed;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.5);padding:4px 0;min-width:170px;z-index:300;display:none}
+.ctx-menu.visible{display:block}
+.ctx-item{padding:7px 14px;font-size:12px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s}
+.ctx-item:hover{background:var(--surface);color:var(--accent)}
+.ctx-item.disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.ctx-sep{height:1px;background:var(--border);margin:4px 0}
+.ctx-item .ctx-label{color:var(--text2);font-size:10px;margin-left:auto}
+
+/* Iterate Button */
+.iterate-btn{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:6px 14px;border-radius:var(--radius);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;display:none;align-items:center;gap:5px}
+.iterate-btn:hover{background:var(--accent);color:#fff}
+.iterate-btn .spinner{width:13px;height:13px;border:2px solid rgba(99,102,241,.3);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;display:none}
+.iterate-btn.loading .spinner{display:block}
+.iterate-btn.loading .btn-text{display:none}
 </style>
 </head>
 <body>
@@ -119,7 +136,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
   <button class="beautify-btn" id="beautifyBtn">
     <div class="spinner"></div>
     <svg class="btn-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9l-7 3 7 3 3 7 3-7 7-3-7-3-3-7z"/></svg>
-    美化
+    <span class="btn-text">美化</span>
+  </button>
+  <button class="iterate-btn" id="iterateBtn">
+    <div class="spinner"></div>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    <span class="btn-text">迭代修改</span>
   </button>
   <button class="icon-btn" id="undoBtn">↩</button>
   <button class="icon-btn" id="clearBtn">🗑</button>
@@ -139,6 +161,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
       <div class="preview-tab active" data-tab="preview">预览</div>
       <div class="preview-tab" data-tab="code">代码</div>
       <button id="copyBtn" style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:var(--radius);cursor:pointer;font-size:10px;display:none">复制代码</button>
+      <button id="downloadBtn" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:var(--radius);cursor:pointer;font-size:10px;display:none">下载项目</button>
     </div>
     <div class="preview-content">
       <iframe class="preview-iframe" id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe>
@@ -165,6 +188,15 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
     <div class="modal-actions"><button class="btn" id="cancelSettings">取消</button><button class="btn btn-primary" id="saveSettings">保存</button></div>
   </div>
 </div>
+<div class="modal-overlay" id="iterateModal">
+  <div class="modal">
+    <h3>迭代修改</h3>
+    <div class="form-group" id="iterateScopeGroup"><label>修改范围</label><div id="iterateScopeOptions"></div></div>
+    <div class="form-group"><label>修改指令</label><textarea id="iterateInstruction" rows="3" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--radius);font-size:12px;outline:none;resize:vertical" placeholder="描述你想要的修改，例如：把导航栏改成深色背景..."></textarea></div>
+    <div class="modal-actions"><button class="btn" id="cancelIterate">取消</button><button class="btn btn-primary" id="applyIterate">应用修改</button></div>
+  </div>
+</div>
+<div class="ctx-menu" id="ctxMenu"></div>
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
@@ -188,8 +220,12 @@ const _ep=localStorage.getItem('s2u_endpoint');
 if(_ep&&_ep.startsWith('http'))localStorage.removeItem('s2u_endpoint');
 const CONFIG={endpoint:'/api/messages',model:'glm-5.1-highspeed',apiKey:'',style:localStorage.getItem('s2u_style')||'modern',styleCustom:localStorage.getItem('s2u_stylecustom')||''};
 
+// Load cached API config from server on startup
+(async()=>{try{const r=await fetch('/api/cache');if(r.ok){const d=await r.json();if(d.apiKey)CONFIG.apiKey=d.apiKey;if(d.model)CONFIG.model=d.model;if(d.endpoint)CONFIG.endpoint=d.endpoint;document.getElementById('apiKey').value=CONFIG.apiKey;document.getElementById('apiModel').value=CONFIG.model;document.getElementById('apiEndpoint').value=CONFIG.endpoint}}catch(e){}})();
+
 const GRID_COLS=12,GRID_ROWS=8;
 let canvas,generating=false,currentTool='draw',isDrawing=false,shapeStart=null,tempShape=null,gridVisible=true,abortCtrl=null;
+let lastGenHTML='',lastGenLayout=null,lastGenRegions=[],contextTarget=null;
 
 // ━━━━━━━━━━ Init ━━━━━━━━━━
 document.addEventListener('DOMContentLoaded',()=>{
@@ -204,7 +240,16 @@ function initCanvas(){
   canvas.freeDrawingBrush.width=3;canvas.freeDrawingBrush.color='#555';
   let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{canvas.setDimensions({width:w.clientWidth,height:w.clientHeight});canvas.renderAll()},200)});
   canvas.on('mouse:down',onDown);canvas.on('mouse:move',onMove);canvas.on('mouse:up',onUp);
-  canvas.on('mouse:dblclick',opt=>{if(currentTool==='select'&&opt.target){const v=prompt('修改标签：',opt.target._uiLabel||'');if(v!=null&&v.trim()){opt.target._uiLabel=v.trim();canvas.renderAll()}}});
+  canvas.on('path:created',opt=>{opt.path.set({selectable:false,evented:false})});
+  // Right-click via Fabric event system (DOM contextmenu doesn't reach Fabric's canvas)
+  canvas.on('mouse:down',function(opt){
+    if(opt.e.button!==2)return; // only right-click
+    const target=opt.target;
+    if(!target||target.type==='path'||target.type==='i-text')return;
+    opt.e.preventDefault();
+    showContextMenu(opt.e.clientX,opt.e.clientY,target);
+  });
+  canvas.on('mouse:dblclick',opt=>{if(currentTool==='select'&&opt.target&&opt.target.type!=='textbox'&&opt.target.type!=='i-text'){const v=prompt('修改标签：',opt.target._uiLabel||'');if(v!=null&&v.trim()){opt.target._uiLabel=v.trim();canvas.renderAll()}}});
   setS('ok',`就绪 — 画布 ${canvas.getWidth()}×${canvas.getHeight()}`);
 }
 
@@ -214,6 +259,23 @@ function initToolbar(){
   document.getElementById('beautifyBtn').addEventListener('click',beautify);
   document.getElementById('undoBtn').addEventListener('click',undo);
   document.getElementById('clearBtn').addEventListener('click',clearAll);
+  document.getElementById('iterateBtn').addEventListener('click',()=>openIterateModal(null));
+  document.getElementById('cancelIterate').addEventListener('click',closeIterateModal);
+  document.getElementById('applyIterate').addEventListener('click',()=>{
+    const opts=document.getElementById('iterateScopeOptions');
+    const locked=opts.dataset.locked;
+    let regionId=null;
+    if(locked){regionId=locked}
+    else{const checked=document.querySelector('input[name="iterateScope"]:checked');if(checked&&checked.value!=='whole')regionId=checked.value}
+    const instruction=document.getElementById('iterateInstruction').value;
+    closeIterateModal();iterateBeautify(regionId,instruction);
+  });
+  document.getElementById('iterateModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeIterateModal()});
+  // ── Global event handlers ──
+  // 1) Block browser default right-click menu everywhere
+  document.addEventListener('contextmenu',e=>e.preventDefault());
+  // 2) Any mousedown outside the menu closes it (left-click blank = close)
+  document.addEventListener('mousedown',e=>{if(!e.target.closest('.ctx-menu'))hideContextMenu()});
 }
 function setTool(t){
   // BUG-03: exit text editing before switching tools
@@ -236,6 +298,7 @@ function setTool(t){
 const SHAPE_STYLE={fill:'rgba(99,102,241,.06)',stroke:'#6366f1',strokeWidth:2,rx:4,ry:4,selectable:false,evented:false};
 
 function onDown(opt){
+  if(opt.e && opt.e.button !== 0)return; // 仅允许左键进行绘制和擦除
   // Eraser
   if(currentTool==='eraser'&&opt.target){canvas.remove(opt.target);canvas.renderAll();return}
   if(!['rect','circle','triangle','text'].includes(currentTool))return;
@@ -381,7 +444,7 @@ function analyzeLayout(){
   function describe(idx,depth){
     const it=items[idx],indent='  '.repeat(depth);
     const cs=Math.max(1,Math.round(it.l/100*GRID_COLS)+1);
-    const ce=Math.min(GRID_COLS,Math.round((it.l+it.w)/100*GRID_COLS));
+    const ce=Math.max(cs,Math.min(GRID_COLS,Math.round((it.l+it.w)/100*GRID_COLS)));
     desc+=`${indent}${num++}. 「${it.label}」`;
     desc+=` → left:${it.l}% top:${it.t}% width:${it.w}% height:${it.h}%`;
     desc+=` | ${ce-cs+1>=GRID_COLS-1?'全宽':`第${cs}-${ce}列`}`;
@@ -442,7 +505,8 @@ ${theme.tokens}
 5. CSS 使用 --c-* 变量
 6. CSS 简洁，不写复杂动画
 7. 完整 HTML（DOCTYPE + style + body）
-8. 只输出代码`;
+8. 只输出代码
+9. 每个布局区域必须用 <section> 标签包裹，格式为：<section id="region-N" data-label="标签名">，N 从 1 开始按从上到下从左到右的顺序编号`;
 
   try{
     const resp=await fetch(CONFIG.endpoint,{
@@ -489,13 +553,304 @@ ${theme.tokens}
     const f=document.getElementById('previewFrame');f.contentDocument.open();f.contentDocument.write(html);f.contentDocument.close();
     cv.textContent=html;
     document.querySelector('[data-tab="preview"]').click();
+    injectPreviewMenu();
     document.getElementById('copyBtn').style.display='block';
+    document.getElementById('downloadBtn').style.display='inline-block';
+    // Save generation state for iterative editing
+    lastGenHTML=html;lastGenLayout=layoutDesc;
+    buildRegionMap(html);
+    // Switch UI: 美化 → 重新生成, show 迭代修改
+    const bBtn=document.getElementById('beautifyBtn');bBtn.querySelector('.btn-text').textContent='重新生成';
+    const iBtn=document.getElementById('iterateBtn');iBtn.style.display='flex';
     setS('ok',`完成 — ${html.length} 字符`);toast('success','美化完成！');
   }catch(e){
     if(e.name==='AbortError')return;
     setS('err',e.message);toast('error',e.message);
   }
   finally{clearTimeout(safety);abortCtrl=null;generating=false;btn.classList.remove('loading');btn.disabled=false}
+}
+
+// ━━━━━━━━━━ Style / Tabs / Settings / Undo ━━━━━━━━━━
+
+// ━━━━━━━━━━ Region Map ━━━━━━━━━━
+function buildRegionMap(html){
+  lastGenRegions=[];
+  const re=/<section\s+id="(region-\d+)"\s+data-label="([^"]*)"/g;
+  let m;while((m=re.exec(html))!==null)lastGenRegions.push({id:m[1],label:m[2]});
+  if(/<header[^>]*>/i.test(html)) lastGenRegions.push({id:'header',label:'页头/导航栏'});
+  if(/<footer[^>]*>/i.test(html)) lastGenRegions.push({id:'footer',label:'页脚/版权与协议'});
+  if(/<nav[^>]*>/i.test(html) && !lastGenRegions.some(r=>r.id==='nav')) lastGenRegions.push({id:'nav',label:'导航菜单'});
+}
+
+function extractRegion(html,regionId){
+  if(regionId==='header'||regionId==='footer'||regionId==='nav'){
+    const re=new RegExp(`<${regionId}[^>]*>[\\s\\S]*?</${regionId}>`,'i');
+    const m=html.match(re);return m?m[0]:null;
+  }
+  const re=new RegExp(`<section\\s+id="${regionId}"[^>]*>[\\s\\S]*?</section>`,'i');
+  const m=html.match(re);return m?m[0]:null;
+}
+
+function spliceRegion(html,regionId,newHTML){
+  if(regionId==='header'||regionId==='footer'||regionId==='nav'){
+    const re=new RegExp(`<${regionId}[^>]*>[\\s\\S]*?</${regionId}>`,'i');
+    return html.replace(re,newHTML);
+  }
+  const re=new RegExp(`<section\\s+id="${regionId}"[^>]*>[\\s\\S]*?</section>`,'i');
+  return html.replace(re,newHTML);
+}
+
+function getShapeRegion(obj){
+  if(!obj||!obj._uiLabel)return null;
+  // Get all layout shapes sorted top-to-bottom, left-to-right (same order as analyzeLayout)
+  const shapes=canvas.getObjects().filter(o=>o._uiLabel&&o.type!=='path'&&o.type!=='i-text'&&o.type!=='textbox');
+  const cw=canvas.getWidth(),ch=canvas.getHeight();
+  const sorted=shapes.map(s=>{const b=s.getBoundingRect();return{obj:s,label:s._uiLabel,t:b.top/ch,l:b.left/cw}}).sort((a,b)=>a.t-b.t||a.l-b.l);
+  // Find this shape's index among same-label shapes in sorted order
+  let labelOrder=0,found=false;
+  for(const s of sorted){if(s.obj===obj){found=true;break}if(s.label===obj._uiLabel)labelOrder++}
+  if(!found)return lastGenRegions.find(r=>r.label===obj._uiLabel)||null;
+  // Match to Nth region with the same label
+  let regionOrder=0;
+  for(const r of lastGenRegions){if(r.label===obj._uiLabel){if(regionOrder===labelOrder)return r;regionOrder++}}
+  return lastGenRegions.find(r=>r.label===obj._uiLabel)||null;
+}
+
+// ━━━━━━━━━━ Context Menu ━━━━━━━━━━
+let ctxMenuSource=''; // 'canvas' or 'preview'
+let ctxPreviewRegion=null; // region id when source is 'preview'
+
+function showContextMenu(x,y,obj){
+  hideContextMenu();
+  if(!obj||obj.type==='path'||obj.type==='i-text')return;
+  contextTarget=obj;ctxMenuSource='canvas';ctxPreviewRegion=null;
+  const menu=document.getElementById('ctxMenu');
+  const hasGen=!!lastGenHTML;
+  const locked=obj.lockMovementX;
+  const items=[
+    {icon:'✏️',text:'迭代修改该组件',action:ctxIterate,disabled:!hasGen},
+    {icon:'🏷️',text:'编辑标签',sub:obj._uiLabel||'',action:ctxEditLabel},
+    {sep:true},
+    {icon:'📋',text:'复制',action:ctxDuplicate},
+    {icon:'🗑️',text:'删除',action:ctxDelete},
+    {sep:true},
+    {icon:'🔆',text:'置顶层',action:ctxBringTop},
+    {icon:'🔇',text:'置底层',action:ctxBringBottom},
+    {icon:locked?'🔓':'🔒',text:locked?'解锁位置':'锁定位置',action:ctxToggleLock},
+  ];
+  _renderMenu(menu,items,x,y);
+}
+
+function showPreviewContextMenu(x,y,regionId){
+  hideContextMenu();
+  const region=regionId ? lastGenRegions.find(r=>r.id===regionId) : null;
+  contextTarget=null;ctxMenuSource='preview';ctxPreviewRegion=regionId || null;
+  const menu=document.getElementById('ctxMenu');
+  let items=[];
+  if(region){
+    const isGlobal = (regionId==='header'||regionId==='footer'||regionId==='nav');
+    items=[
+      {icon:'✏️',text:`迭代修改「${region.label}」`,action:()=>openIterateModal(regionId)},
+      {icon:'📋',text:'复制该组件代码',action:()=>{const code=extractRegion(lastGenHTML,regionId);if(code){navigator.clipboard.writeText(code);toast('success','组件代码已复制')}else toast('error','未找到该组件代码')}},
+    ];
+    if(!isGlobal){
+      items.push({sep:true});
+      items.push({icon:'🔍',text:'在画布中定位',action:()=>locateShapeByRegion(regionId)});
+    }
+    items.push({sep:true});
+    items.push({icon:'🌐',text:'迭代修改整个页面',action:()=>openIterateModal(null)});
+    items.push({icon:'📄',text:'复制整个页面代码',action:()=>{navigator.clipboard.writeText(lastGenHTML);toast('success','整个页面代码已复制')}});
+  }else{
+    items=[
+      {icon:'🌐',text:'迭代修改整个页面',action:()=>openIterateModal(null)},
+      {icon:'📄',text:'复制整个页面代码',action:()=>{navigator.clipboard.writeText(lastGenHTML);toast('success','整个页面代码已复制')}},
+    ];
+  }
+  _renderMenu(menu,items,x,y);
+}
+
+function _renderMenu(menu,items,x,y){
+  menu.innerHTML='';
+  for(const it of items){
+    if(it.sep){const s=document.createElement('div');s.className='ctx-sep';menu.appendChild(s);continue}
+    const d=document.createElement('div');d.className='ctx-item'+(it.disabled?' disabled':'');
+    let html=`<span>${it.icon}</span><span>${it.text}</span>`;
+    if(it.sub)html+=`<span class="ctx-label">${it.sub}</span>`;
+    d.innerHTML=html;
+    if(!it.disabled)d.addEventListener('click',()=>{hideContextMenu();it.action()});
+    menu.appendChild(d);
+  }
+  menu.style.left=x+'px';menu.style.top=y+'px';menu.classList.add('visible');
+  requestAnimationFrame(()=>{const r=menu.getBoundingClientRect();if(r.right>window.innerWidth)menu.style.left=(x-r.width)+'px';if(r.bottom>window.innerHeight)menu.style.top=(y-r.height)+'px'});
+}
+
+function hideContextMenu(){document.getElementById('ctxMenu').classList.remove('visible');contextTarget=null}
+
+function ctxEditLabel(){if(!contextTarget)return;const v=prompt('修改标签：',contextTarget._uiLabel||'');if(v!=null&&v.trim()){contextTarget._uiLabel=v.trim();canvas.renderAll()}}
+function ctxDuplicate(){if(!contextTarget)return;contextTarget.clone(cl=>{cl.set({left:contextTarget.left+20,top:contextTarget.top+20});cl._uiLabel=contextTarget._uiLabel;canvas.add(cl);canvas.renderAll()})}
+function ctxDelete(){if(!contextTarget)return;canvas.remove(contextTarget);canvas.renderAll();contextTarget=null}
+function ctxBringTop(){if(!contextTarget)return;canvas.bringToFront(contextTarget);canvas.renderAll()}
+function ctxBringBottom(){if(!contextTarget)return;canvas.sendToBack(contextTarget);canvas.renderAll()}
+function ctxToggleLock(){if(!contextTarget)return;const locked=!contextTarget.lockMovementX;contextTarget.set({lockMovementX:locked,lockMovementY:locked,lockRotation:locked,lockScalingX:locked,lockScalingY:locked,hasControls:!locked});if(locked){contextTarget.set({stroke:'#999',strokeDashArray:[6,3]})}else{contextTarget.set({stroke:'#6366f1',strokeDashArray:null})}canvas.renderAll()}
+
+function ctxIterate(){if(!contextTarget||!lastGenHTML)return;const region=getShapeRegion(contextTarget);openIterateModal(region?region.id:null)}
+
+function locateShapeByRegion(regionId){
+  const region=lastGenRegions.find(r=>r.id===regionId);if(!region)return;
+  const shapes=canvas.getObjects().filter(o=>o._uiLabel&&o.type!=='path'&&o.type!=='i-text'&&o.type!=='textbox');
+  const cw=canvas.getWidth(),ch=canvas.getHeight();
+  const sorted=shapes.map(s=>{const b=s.getBoundingRect();return{obj:s,label:s._uiLabel,t:b.top/ch,l:b.left/cw}}).sort((a,b)=>a.t-b.t||a.l-b.l);
+  let labelOrder=0,found=null;
+  for(const r of lastGenRegions){if(r.id===regionId)break;if(r.label===region.label)labelOrder++}
+  let count=0;for(const s of sorted){if(s.label===region.label){if(count===labelOrder){found=s.obj;break}count++}}
+  if(found){
+    canvas.setActiveObject(found);canvas.renderAll();
+    const b=found.getBoundingRect();
+    canvas.absolutePan({x:b.left-canvas.getWidth()/3,y:b.top-canvas.getHeight()/3});
+    toast('info',`已定位到「${region.label}」`);
+  }else toast('info','画布上未找到对应形状');
+}
+
+// Inject right-click menu into preview iframe after HTML is loaded
+function injectPreviewMenu(){
+  const iframe=document.getElementById('previewFrame');
+  const doc=iframe.contentDocument;if(!doc)return;
+  // Right-click on a region → show preview context menu
+  doc.addEventListener('contextmenu',e=>{
+    e.preventDefault();
+    if(!lastGenHTML)return;
+    const target=e.target.closest('[id^="region-"], header, footer, nav');
+    const iframeRect=iframe.getBoundingClientRect();
+    if(target){
+      let id=target.id;
+      if(!id && (target.tagName==='HEADER' || target.tagName==='FOOTER' || target.tagName==='NAV')){
+        id=target.tagName.toLowerCase();
+      }
+      showPreviewContextMenu(e.clientX+iframeRect.left,e.clientY+iframeRect.top,id);
+    }else{
+      showPreviewContextMenu(e.clientX+iframeRect.left,e.clientY+iframeRect.top,null);
+    }
+  });
+  // Any click inside iframe closes the parent context menu
+  doc.addEventListener('mousedown',()=>hideContextMenu());
+}
+
+// ━━━━━━━━━━ Iterate Modal ━━━━━━━━━━
+function openIterateModal(lockedRegionId){
+  const modal=document.getElementById('iterateModal');
+  const scopeGroup=document.getElementById('iterateScopeGroup');
+  const scopeOptions=document.getElementById('iterateScopeOptions');
+  const ta=document.getElementById('iterateInstruction');ta.value='';
+  if(lockedRegionId){
+    scopeGroup.style.display='block';
+    const region=lastGenRegions.find(r=>r.id===lockedRegionId);
+    scopeOptions.innerHTML=`<div style="font-size:12px;color:var(--accent);padding:4px 0">仅修改「${region?region.label:'未知'}」（${lockedRegionId}）</div>`;
+    scopeOptions.dataset.locked=lockedRegionId;
+  }else{
+    scopeGroup.style.display=lastGenRegions.length?'block':'none';
+    let html='<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;cursor:pointer"><input type="radio" name="iterateScope" value="whole" checked> 修改整个页面</label>';
+    // If a shape is selected on canvas, pre-select its region
+    const active=canvas.getActiveObject();
+    let preSelect=null;
+    if(active&&active._uiLabel){const r=getShapeRegion(active);if(r)preSelect=r.id}
+    for(const r of lastGenRegions){
+      const checked=preSelect===r.id?'checked':'';
+      html+=`<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;cursor:pointer"><input type="radio" name="iterateScope" value="${r.id}" ${checked}> 仅修改「${r.label}」</label>`;
+    }
+    if(!preSelect&&lastGenRegions.length)html=html.replace('value="whole" checked','value="whole"');
+    scopeOptions.innerHTML=html;scopeOptions.dataset.locked='';
+  }
+  modal.classList.add('visible');
+  setTimeout(()=>ta.focus(),100);
+}
+
+function closeIterateModal(){document.getElementById('iterateModal').classList.remove('visible')}
+
+// ━━━━━━━━━─ Iterative Beautify ━━━━━━━━━━
+async function iterateBeautify(regionId,instruction){
+  if(generating){toast('info','正在生成中，请稍候');return}
+  if(!instruction.trim()){toast('error','请输入修改指令');return}
+  if(!lastGenHTML){toast('error','没有已生成的页面，请先美化');return}
+  generating=true;
+  const btn=document.getElementById('iterateBtn');btn.classList.add('loading');
+  setS('','正在迭代修改...');
+  abortCtrl=new AbortController();
+  const safety=setTimeout(()=>{if(abortCtrl)abortCtrl.abort();generating=false;btn.classList.remove('loading');setS('err','请求超时');toast('error','请求超时')},60000);
+
+  const cv=document.getElementById('codeView');
+  cv.textContent='';
+
+  try{
+    let systemPrompt,userContent;
+    if(regionId){
+      // Targeted: only send that region's HTML
+      const regionHTML=extractRegion(lastGenHTML,regionId);
+      if(!regionHTML){toast('error','未找到该组件');return}
+      const region=lastGenRegions.find(r=>r.id===regionId);
+      const tag=(regionId==='header'||regionId==='footer'||regionId==='nav')?regionId:'section';
+      systemPrompt=`你是专业前端设计师。用户会给你一个网页组件（一个 <${tag}> 标签）和一个修改指令。请只修改该组件，保持其 HTML 结构完整性${tag==='section'?'，且 id 和 data-label 属性不变':'' }。只输出修改后的该 <${tag}> 标签。`;
+      userContent=`当前组件代码：\n${regionHTML}\n\n用户修改指令：${instruction}`;
+    }else{
+      // Whole page
+      systemPrompt='你是专业前端设计师。用户会给你一个完整的 HTML 页面和一个修改指令。请在已有页面基础上进行修改，保持整体结构 and 风格不变，只做用户要求的变化。只输出修改后的完整 HTML。';
+      const layoutDesc=analyzeLayout();
+      let layoutNote='';
+      if(layoutDesc&&layoutDesc!==lastGenLayout)layoutNote=`\n\n更新后的布局结构：\n${layoutDesc}`;
+      userContent=`当前页面代码：\n${lastGenHTML}\n\n用户修改指令：${instruction}${layoutNote}`;
+    }
+
+    const resp=await fetch(CONFIG.endpoint,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':CONFIG.apiKey,'anthropic-version':'2023-06-01'},
+      signal:abortCtrl.signal,
+      body:JSON.stringify({model:CONFIG.model,max_tokens:8192,system:systemPrompt,messages:[{role:'user',content:userContent}],stream:true,temperature:0.5})
+    });
+    if(!resp.ok){const t=await resp.text();throw new Error(`API ${resp.status}: ${t.slice(0,200)}`)}
+
+    // Stream
+    let full='';const reader=resp.body.getReader(),dec=new TextDecoder();let buf='';
+    while(true){const{done,value}=await reader.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();
+      for(const line of lines){if(line.startsWith('event:')||!line.startsWith('data:'))continue;
+        try{const j=JSON.parse(line.slice(6));if(j.type==='content_block_delta'&&j.delta?.text){full+=j.delta.text;cv.textContent=full;cv.scrollTop=cv.scrollHeight}}catch(e){}}}
+    if(buf.trim()){for(const line of buf.split('\n')){if(line.startsWith('event:')||!line.startsWith('data:'))continue;
+      try{const j=JSON.parse(line.slice(6));if(j.type==='content_block_delta'&&j.delta?.text){full+=j.delta.text;cv.textContent=full}}catch(e){}}}
+
+    // Extract HTML
+    let html=full;
+    const fm=html.match(/```(?:html|HTML)\s*\n?([\s\S]*?)```/);if(fm)html=fm[1].trim();
+    else{const dm=html.match(/(<!DOCTYPE\s+html[\s\S]*?<\/html\s*>)/i);if(dm)html=dm[1];
+    else{const hm=html.match(/(<html[\s\S]*?<\/html\s*>)/i);if(hm)html=hm[1]}}
+
+    // Splice or replace
+    let finalHTML;
+    if(regionId){
+      // Check if AI returned just the section/header/footer/nav or a full page
+      const tag = (regionId==='header'||regionId==='footer'||regionId==='nav') ? regionId : 'section';
+      if(html.includes('<'+tag)&&html.includes('</'+tag)){
+        const cleanSection=extractRegion(html,regionId)||html;
+        finalHTML=spliceRegion(lastGenHTML,regionId,cleanSection);
+      }else{
+        finalHTML=html; // fallback: treat as full page
+      }
+    }else{
+      finalHTML=html;
+    }
+
+    const f=document.getElementById('previewFrame');f.contentDocument.open();f.contentDocument.write(finalHTML);f.contentDocument.close();
+    injectPreviewMenu();
+    cv.textContent=finalHTML;
+    document.querySelector('[data-tab="preview"]').click();
+    document.getElementById('copyBtn').style.display='block';
+    document.getElementById('downloadBtn').style.display='inline-block';
+    lastGenHTML=finalHTML;
+    buildRegionMap(finalHTML);
+    setS('ok',`迭代完成 — ${finalHTML.length} 字符`);toast('success','迭代修改完成！');
+  }catch(e){
+    if(e.name==='AbortError')return;
+    setS('err',e.message);toast('error',e.message);
+  }
+  finally{clearTimeout(safety);abortCtrl=null;generating=false;btn.classList.remove('loading')}
 }
 
 // ━━━━━━━━━━ Style / Tabs / Settings / Undo ━━━━━━━━━━
@@ -507,17 +862,40 @@ function initStyle(){
 }
 function initTabs(){
   document.getElementById('copyBtn').addEventListener('click',()=>{const c=document.getElementById('codeView').textContent;if(!c)return;navigator.clipboard.writeText(c).then(()=>{const b=document.getElementById('copyBtn');b.textContent='已复制!';b.style.color='var(--success)';setTimeout(()=>{b.textContent='复制代码';b.style.color=''},2000)})});
-  document.querySelectorAll('.preview-tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.preview-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');const m=t.dataset.tab;document.getElementById('previewFrame').style.display=m==='preview'?'block':'none';document.getElementById('codeView').classList.toggle('visible',m==='code');document.getElementById('copyBtn').style.display=(m==='code'&&document.getElementById('codeView').textContent)?'block':'none'}));
+  document.getElementById('downloadBtn').addEventListener('click',downloadProject);
+  document.querySelectorAll('.preview-tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.preview-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');const m=t.dataset.tab;document.getElementById('previewFrame').style.display=m==='preview'?'block':'none';document.getElementById('codeView').classList.toggle('visible',m==='code');document.getElementById('copyBtn').style.display=(m==='code'&&document.getElementById('codeView').textContent)?'block':'none';document.getElementById('downloadBtn').style.display=lastGenHTML?'inline-block':'none'}));
 }
+
+async function downloadProject(){
+  if(!lastGenHTML){toast('error','没有已生成的页面');return}
+  if(typeof JSZip==='undefined'){toast('error','下载库(JSZip)未加载，请检查网络连接');return}
+  const zip=new JSZip();
+  const ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  const folderName=`sketch-ui-${ts}`;
+  const folder=zip.folder(folderName);
+  folder.file('index.html',lastGenHTML);
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`${folderName}.zip`;a.click();URL.revokeObjectURL(a.href);
+  toast('success',`已下载 ${folderName}.zip`);
+}
+
 function initSettings(){
   document.getElementById('settingsBtn').addEventListener('click',openSettings);document.getElementById('cancelSettings').addEventListener('click',closeSettings);document.getElementById('saveSettings').addEventListener('click',saveSettings);document.getElementById('settingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSettings()});
   document.getElementById('apiEndpoint').value=CONFIG.endpoint;document.getElementById('apiModel').value=CONFIG.model;document.getElementById('apiKey').value=CONFIG.apiKey;
 }
 function openSettings(){document.getElementById('settingsModal').classList.add('visible')}
 function closeSettings(){document.getElementById('settingsModal').classList.remove('visible')}
-function saveSettings(){CONFIG.apiKey=document.getElementById('apiKey').value.trim();closeSettings();if(CONFIG.apiKey)toast('success','API Key 已设置');else toast('error','未输入 API Key')}
+function saveSettings(){
+  CONFIG.apiKey=document.getElementById('apiKey').value.trim();
+  CONFIG.model=document.getElementById('apiModel').value.trim()||CONFIG.model;
+  CONFIG.endpoint=document.getElementById('apiEndpoint').value.trim()||CONFIG.endpoint;
+  // Persist to server cache file
+  fetch('/api/cache',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:CONFIG.apiKey,model:CONFIG.model,endpoint:CONFIG.endpoint})}).catch(()=>{});
+  closeSettings();if(CONFIG.apiKey)toast('success','设置已保存');else toast('error','未输入 API Key');
+}
 function undo(){const o=canvas.getObjects();if(o.length){canvas.remove(o[o.length-1]);canvas.renderAll()}}
-function clearAll(){if(!canvas.getObjects().length)return;if(!confirm('清空？'))return;canvas.clear();canvas.backgroundColor='#fff';canvas.renderAll();const f=document.getElementById('previewFrame');f.contentDocument.open();f.contentDocument.write('');f.contentDocument.close();document.getElementById('codeView').textContent='';document.getElementById('emptyState').style.display='flex';document.getElementById('copyBtn').style.display='none';setS('ok','就绪')}
+function clearAll(){if(!canvas.getObjects().length&&!lastGenHTML)return;if(!confirm('清空？'))return;canvas.clear();canvas.backgroundColor='#fff';canvas.renderAll();const f=document.getElementById('previewFrame');f.contentDocument.open();f.contentDocument.write('');f.contentDocument.close();document.getElementById('codeView').textContent='';document.getElementById('emptyState').style.display='flex';document.getElementById('copyBtn').style.display='none';document.getElementById('downloadBtn').style.display='none';lastGenHTML='';lastGenLayout=null;lastGenRegions=[];document.getElementById('beautifyBtn').querySelector('.btn-text').textContent='美化';document.getElementById('iterateBtn').style.display='none';setS('ok','就绪')}
 function initKeyboard(){document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;if(canvas.getActiveObject()?.isEditing)return;const k=e.key.toLowerCase();if(k==='d')setTool('draw');else if(k==='r')setTool('rect');else if(k==='c')setTool('circle');else if(k==='g')setTool('triangle');else if(k==='t')setTool('text');else if(k==='v')setTool('select');else if(k==='e')setTool('eraser');else if(k==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();undo()}else if(k==='delete'||k==='backspace'){const a=canvas.getActiveObject();if(a&&!a.isEditing){canvas.remove(a);canvas.renderAll()}}})}
 
 function setS(t,m){document.getElementById('statusDot').className='status-dot'+(t?` ${t}`:'');document.getElementById('statusMsg').textContent=m}
