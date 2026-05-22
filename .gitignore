@@ -3,3 +3,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .api_key_cache
+sketches/
+projects/

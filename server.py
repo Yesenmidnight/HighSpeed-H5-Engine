@@ -2,13 +2,18 @@
 import http.server
 import json
 import os
+import glob
 import urllib.request
 import urllib.error
+from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 
 PORT = 9090
 STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
 API_TARGET = "https://open.bigmodel.cn/api/anthropic/v1/messages"
 KEY_FILE = os.path.join(STATIC_DIR, ".api_key_cache")
+PROJECTS_DIR = os.path.join(STATIC_DIR, "projects")
+SKETCHES_DIR = os.path.join(STATIC_DIR, "sketches")
 
 
 def _read_cache():
@@ -31,6 +36,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/cache":
             self._send_cache()
+        elif self.path.startswith("/api/versions/tree"):
+            self._version_tree()
+        elif self.path.startswith("/api/versions/load"):
+            self._version_load()
+        elif self.path == "/api/sketches":
+            self._sketch_list()
         else:
             super().do_GET()
 
@@ -39,6 +50,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._proxy_api()
         elif self.path == "/api/cache":
             self._save_cache()
+        elif self.path == "/api/versions/save":
+            self._version_save()
+        elif self.path == "/api/versions/current":
+            self._version_update_current()
+        elif self.path == "/api/sketches/save":
+            self._sketch_save()
+        elif self.path == "/api/sketches/load":
+            self._sketch_load()
+        elif self.path == "/api/sketches/delete":
+            self._sketch_delete()
         else:
             self.send_error(405)
 
@@ -145,6 +166,186 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(str(e).encode())
+
+    # ━━━━━━ Version Management ━━━━━━
+    def _json_response(self, code, data):
+        body = json.dumps(data, ensure_ascii=False).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_tree(self, pname):
+        """Read tree.json for a project, return None if not exists."""
+        tp = os.path.join(PROJECTS_DIR, pname, "tree.json")
+        if not os.path.isfile(tp):
+            return None
+        with open(tp, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def _write_tree(self, pname, tree):
+        """Write tree.json for a project."""
+        tp = os.path.join(PROJECTS_DIR, pname, "tree.json")
+        with open(tp, "w", encoding="utf-8") as f:
+            json.dump(tree, f, ensure_ascii=False, indent=2)
+
+    def _version_save(self):
+        """POST /api/versions/save — save a new tree node."""
+        length = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(length)) if length else {}
+        html = body.get("html", "")
+        if not html:
+            self._json_response(400, {"ok": False, "error": "empty html"})
+            return
+        label = body.get("label", "")
+        pname = body.get("projectName", "")
+        parent = body.get("currentNode", None)
+
+        if not pname:
+            pname = "project_" + datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        proj_dir = os.path.join(PROJECTS_DIR, pname)
+        os.makedirs(proj_dir, exist_ok=True)
+
+        tree = self._read_tree(pname)
+        if not tree:
+            tree = {"projectName": pname, "nodes": {}, "currentNode": None}
+            parent = None  # first node has no parent
+
+        # Assign next node id
+        nid = f"n{len(tree['nodes']) + 1}"
+        tree["nodes"][nid] = {
+            "parent": parent,
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "label": label or "初始美化",
+            "instruction": body.get("instruction", ""),
+        }
+        tree["currentNode"] = nid
+
+        # Save HTML file
+        with open(os.path.join(proj_dir, f"{nid}.html"), "w", encoding="utf-8") as f:
+            f.write(html)
+
+        self._write_tree(pname, tree)
+        self._json_response(200, {"ok": True, "nodeId": nid, "projectName": pname, "tree": tree})
+
+    def _version_tree(self):
+        """GET /api/versions/tree — return full tree."""
+        qs = parse_qs(urlparse(self.path).query)
+        pname = qs.get("project", [""])[0]
+        if not pname:
+            self._json_response(400, {"ok": False, "error": "missing project"})
+            return
+        tree = self._read_tree(pname)
+        if not tree:
+            self._json_response(200, {"ok": True, "tree": None})
+            return
+        self._json_response(200, {"ok": True, "tree": tree})
+
+    def _version_load(self):
+        """GET /api/versions/load?project=<name>&node=<id>"""
+        qs = parse_qs(urlparse(self.path).query)
+        pname = qs.get("project", [""])[0]
+        nid = qs.get("node", [""])[0]
+        if not pname or not nid:
+            self._json_response(400, {"ok": False, "error": "missing params"})
+            return
+
+        filepath = os.path.join(PROJECTS_DIR, pname, f"{nid}.html")
+        if not os.path.isfile(filepath):
+            self._json_response(404, {"ok": False, "error": "not found"})
+            return
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(html.encode("utf-8"))
+
+    def _version_update_current(self):
+        """POST /api/versions/current — update currentNode pointer."""
+        length = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(length)) if length else {}
+        pname = body.get("projectName", "")
+        nid = body.get("nodeId", "")
+        if not pname or not nid:
+            self._json_response(400, {"ok": False, "error": "missing params"})
+            return
+        tree = self._read_tree(pname)
+        if not tree or nid not in tree.get("nodes", {}):
+            self._json_response(404, {"ok": False, "error": "not found"})
+            return
+        tree["currentNode"] = nid
+        self._write_tree(pname, tree)
+        self._json_response(200, {"ok": True, "tree": tree})
+
+    # ━━━━━━ Sketch Management ━━━━━━
+    def _sketch_list(self):
+        if not os.path.isdir(SKETCHES_DIR):
+            self._json_response(200, {"ok": True, "sketches": []})
+            return
+        sketches = []
+        for f in sorted(os.listdir(SKETCHES_DIR)):
+            if not f.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(SKETCHES_DIR, f), "r", encoding="utf-8") as fp:
+                    d = json.load(fp)
+                ts = d.get("timestamp", "")
+                name = d.get("name", f.replace(".json", ""))
+                sketches.append({"name": name, "filename": f, "timestamp": ts, "thumbnail": d.get("thumbnail", "")})
+            except Exception:
+                continue
+        sketches.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        self._json_response(200, {"ok": True, "sketches": sketches})
+
+    def _sketch_save(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(length)) if length else {}
+        name = body.get("name", "").strip()
+        data = body.get("data", "")
+        thumb = body.get("thumbnail", "")
+        if not name:
+            self._json_response(400, {"ok": False, "error": "missing name"})
+            return
+        os.makedirs(SKETCHES_DIR, exist_ok=True)
+        safe_name = "".join(c for c in name if c.isalnum() or c in "._- ").strip() or "sketch"
+        filename = safe_name + ".json"
+        payload = {"name": name, "data": data, "thumbnail": thumb, "timestamp": datetime.now().isoformat()}
+        with open(os.path.join(SKETCHES_DIR, filename), "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+        self._json_response(200, {"ok": True, "filename": filename})
+
+    def _sketch_load(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(length)) if length else {}
+        filename = body.get("filename", "")
+        if not filename:
+            self._json_response(400, {"ok": False, "error": "missing filename"})
+            return
+        filepath = os.path.join(SKETCHES_DIR, filename)
+        if not os.path.isfile(filepath):
+            self._json_response(404, {"ok": False, "error": "not found"})
+            return
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self._json_response(200, {"ok": True, "data": data.get("data", ""), "name": data.get("name", "")})
+
+    def _sketch_delete(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(length)) if length else {}
+        filename = body.get("filename", "")
+        if not filename:
+            self._json_response(400, {"ok": False, "error": "missing filename"})
+            return
+        filepath = os.path.join(SKETCHES_DIR, filename)
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+        self._json_response(200, {"ok": True})
 
     def do_OPTIONS(self):
         self.send_response(204)

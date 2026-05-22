@@ -56,8 +56,13 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 .preview-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);align-items:center}
 .preview-tab{padding:7px 14px;font-size:12px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;transition:all .15s}
 .preview-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.preview-content{flex:1;position:relative;background:#fff}
-.preview-iframe{width:100%;height:100%;border:none}
+.preview-content{flex:1;position:relative;background:#1a1a2e;display:flex;justify-content:center;align-items:flex-start;overflow:auto}
+.preview-iframe{width:100%;height:100%;border:none;transition:width .3s ease;flex-shrink:0;background:#fff}
+.responsive-bar{display:flex;align-items:center;gap:2px;margin-left:6px}
+.vp-btn{background:transparent;border:1px solid transparent;color:var(--text2);padding:3px 7px;border-radius:4px;cursor:pointer;font-size:11px;transition:all .15s;display:flex;align-items:center}
+.vp-btn:hover{background:var(--surface2);color:var(--text)}
+.vp-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.vp-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
 .code-view{position:absolute;inset:0;background:#0d0d1a;padding:14px;overflow:auto;font-family:'Fira Code',Consolas,monospace;font-size:11px;line-height:1.5;color:#c9d1d9;white-space:pre-wrap;word-break:break-all;display:none}
 .code-view.visible{display:block}
 .empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2);gap:10px;background:var(--bg)}
@@ -97,6 +102,36 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 .ctx-item.disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
 .ctx-sep{height:1px;background:var(--border);margin:4px 0}
 .ctx-item .ctx-label{color:var(--text2);font-size:10px;margin-left:auto}
+.vtree-canvas-wrap{max-height:460px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);background:#0a0a12}
+.vtree-canvas-wrap canvas{display:block}
+
+/* Layer Panel */
+.layer-toggle{padding:4px 12px;font-size:10px;color:var(--text2);background:var(--surface);border-top:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:4px;flex-shrink:0}
+.layer-toggle:hover{color:var(--text)}
+.layer-panel{background:var(--surface);border-top:1px solid var(--border);max-height:160px;overflow-y:auto;flex-shrink:0;display:none}
+.layer-panel.open{display:block}
+.layer-item{display:flex;align-items:center;gap:6px;padding:4px 12px;font-size:11px;color:var(--text);cursor:pointer;transition:background .1s}
+.layer-item:hover{background:var(--surface2)}
+.layer-item.active{background:var(--accent);color:#fff;border-radius:var(--radius)}
+.layer-item .layer-icon{font-size:10px;opacity:.7}
+.layer-item .layer-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layer-item .layer-btn{background:none;border:none;color:inherit;opacity:.5;cursor:pointer;font-size:11px;padding:0 2px}
+.layer-item .layer-btn:hover{opacity:1}
+
+/* Property Panel */
+.prop-panel{position:absolute;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:8px 12px;display:none;z-index:10;font-size:11px}
+.prop-panel.visible{display:block}
+.prop-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.prop-row:last-child{margin-bottom:0}
+.prop-label{color:var(--text2);min-width:30px;font-size:10px}
+.prop-input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;width:60px;outline:none;text-align:right}
+.prop-input:focus{border-color:var(--accent)}
+.prop-select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;outline:none;flex:1}
+
+/* Snap Guides */
+.snap-guide{position:absolute;pointer-events:none;z-index:5}
+.snap-guide-h{left:0;right:0;height:1px;background:rgba(239,68,68,.5)}
+.snap-guide-v{top:0;bottom:0;width:1px;background:rgba(59,130,246,.5)}
 
 /* Iterate Button */
 .iterate-btn{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:6px 14px;border-radius:var(--radius);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;display:none;align-items:center;gap:5px}
@@ -116,9 +151,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
   <button class="tool-btn" data-tool="circle" title="圆形"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>圆形</button>
   <button class="tool-btn" data-tool="triangle" title="三角形"><svg viewBox="0 0 24 24"><polygon points="12,3 22,21 2,21" stroke-linejoin="round"/></svg>三角</button>
   <button class="tool-btn" data-tool="text" title="文字标注"><svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9.5" y1="20" x2="14.5" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>文字</button>
+  <button class="tool-btn" data-tool="line" title="线条"><svg viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/></svg>线条</button>
+  <button class="tool-btn" data-tool="arrow" title="箭头"><svg viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="10 5 19 5 19 14"/></svg>箭头</button>
   <div class="sep"></div>
   <button class="tool-btn" data-tool="select" title="选择/双击改标签"><svg viewBox="0 0 24 24"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>选择</button>
   <button class="tool-btn" data-tool="eraser" title="橡皮"><svg viewBox="0 0 24 24"><path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L14.8 1.4c.8-.8 2-.8 2.8 0l5 5c.8.8.8 2 0 2.8L11 20"/></svg>橡皮</button>
+  <button class="icon-btn" id="undoBtn" title="撤销画布">↩</button>
 
   <div class="style-section">
     <span class="style-label">风格</span>
@@ -131,6 +169,14 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
       <option value="custom">自定义...</option>
     </select>
     <input class="style-custom" id="styleCustom" type="text" placeholder="描述风格...">
+    <span class="style-label">模板</span>
+    <select class="style-select" id="templateSelect">
+      <option value="full">完整页面</option>
+      <option value="layout">仅布局框架</option>
+      <option value="animated">带交互动效</option>
+      <option value="mobile">移动端适配</option>
+      <option value="form">表单专用</option>
+    </select>
   </div>
 
   <button class="beautify-btn" id="beautifyBtn">
@@ -143,29 +189,71 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
     <span class="btn-text">迭代修改</span>
   </button>
-  <button class="icon-btn" id="undoBtn">↩</button>
+  <button class="iterate-btn" id="undoIterateBtn" style="display:none">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h10a5 5 0 015 5v0a5 5 0 01-5 5H3"/><polyline points="7 6 3 10 7 14"/></svg>
+    <span class="btn-text">回撤迭代</span>
+  </button>
   <button class="icon-btn" id="clearBtn">🗑</button>
+  <button class="icon-btn" id="saveSketchBtn" title="保存草图">💾</button>
+  <button class="icon-btn" id="loadSketchBtn" title="加载草图">📂</button>
+  <button class="icon-btn" id="templateLibBtn" title="布局模板">📋</button>
+  <button class="icon-btn" id="componentBtn" title="组件库">🧩</button>
   <button class="icon-btn" id="settingsBtn">⚙</button>
 </div>
 
 <div class="main">
   <div class="panel">
-    <div class="panel-label">画布 — 用形状画出布局<span class="hint">D 画笔 | R 矩形 | C 圆 | G 三角 | T 文字 | V 选择</span></div>
+    <div class="panel-label">画布 — 用形状画出布局<span class="hint">D 画笔 | R 矩形 | C 圆 | G 三角 | T 文字 | L 线条 | A 箭头 | V 选择 | Space 平移 | 滚轮缩放</span></div>
     <div class="canvas-wrap" id="canvasWrap">
       <canvas id="drawingCanvas"></canvas>
       <div class="grid-bg"></div>
+      <div id="snapGuides"></div>
+    </div>
+    <div class="layer-toggle" id="layerToggle">▸ 图层 (<span id="layerCount">0</span>)</div>
+    <div class="layer-panel" id="layerPanel"></div>
+  </div>
+  <div id="componentDrawer" style="width:0;overflow:hidden;transition:width .2s;border-right:1px solid var(--border);background:var(--surface);flex-shrink:0">
+    <div style="width:120px;padding:6px">
+      <div style="font-size:10px;color:var(--text2);margin-bottom:4px;text-align:center">拖拽组件到画布</div>
+      <div id="componentList"></div>
     </div>
   </div>
   <div class="panel">
     <div class="preview-tabs">
       <div class="preview-tab active" data-tab="preview">预览</div>
       <div class="preview-tab" data-tab="code">代码</div>
+      <div class="responsive-bar">
+        <button class="vp-btn active" data-vp="desktop" title="桌面"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
+        <button class="vp-btn" data-vp="tablet" title="平板 (768px)"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg></button>
+        <button class="vp-btn" data-vp="mobile" title="手机 (375px)"><svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg></button>
+      </div>
       <button id="copyBtn" style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:var(--radius);cursor:pointer;font-size:10px;display:none">复制代码</button>
       <button id="downloadBtn" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:var(--radius);cursor:pointer;font-size:10px;display:none">下载项目</button>
+      <button id="versionBtn" style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:var(--radius);cursor:pointer;font-size:10px;display:none" onclick="openVersionModal()">📋 <span class="version-label">0</span></button>
     </div>
     <div class="preview-content">
       <iframe class="preview-iframe" id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe>
       <pre class="code-view" id="codeView"></pre>
+      <div class="prop-panel" id="propPanel">
+        <div class="prop-row">
+          <span class="prop-label">X%</span><input class="prop-input" id="propLeft" type="number" step="0.1" min="0" max="100">
+          <span class="prop-label">Y%</span><input class="prop-input" id="propTop" type="number" step="0.1" min="0" max="100">
+          <span class="prop-label">W%</span><input class="prop-input" id="propWidth" type="number" step="0.1" min="0" max="100">
+          <span class="prop-label">H%</span><input class="prop-input" id="propHeight" type="number" step="0.1" min="0" max="100">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">标签</span><select class="prop-select" id="propLabel">
+            <option value="">自动</option>
+            <option value="导航栏">导航栏</option><option value="英雄区域">英雄区域</option>
+            <option value="侧边栏">侧边栏</option><option value="卡片">卡片</option>
+            <option value="按钮">按钮</option><option value="搜索栏">搜索栏</option>
+            <option value="内容区域">内容区域</option><option value="头像/图标">头像/图标</option>
+            <option value="圆形区域">圆形区域</option><option value="页脚">页脚</option>
+            <option value="指示/图标">指示/图标</option><option value="分隔线">分隔线</option>
+            <option value="指示箭头">指示箭头</option>
+          </select>
+        </div>
+      </div>
       <div class="empty-state" id="emptyState">
         <p>在左侧画布上用形状画出页面布局</p>
         <span style="font-size:12px;opacity:.6">画完点击「美化」</span>
@@ -177,6 +265,15 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 <div class="statusbar">
   <div class="status-dot" id="statusDot"></div>
   <span class="status-msg" id="statusMsg">就绪</span>
+  <div style="display:flex;align-items:center;gap:4px">
+    <button class="icon-btn" id="zoomOutBtn" style="font-size:11px;padding:2px 6px">−</button>
+    <span id="zoomLevel" style="font-size:10px;min-width:32px;text-align:center;cursor:pointer" title="双击重置">100%</span>
+    <button class="icon-btn" id="zoomInBtn" style="font-size:11px;padding:2px 6px">+</button>
+  </div>
+</div>
+
+<div style="text-align:center;padding:4px 0;font-size:10px;color:var(--text2);background:var(--surface);border-top:1px solid var(--border);flex-shrink:0">
+  <a href="https://space.bilibili.com/15105608" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;transition:color .15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">&copy; 夜神不说话 · MIT License</a>
 </div>
 
 <div class="modal-overlay" id="settingsModal">
@@ -185,6 +282,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
     <div class="form-group"><label>端点</label><input type="text" id="apiEndpoint" placeholder="/api/messages"></div>
     <div class="form-group"><label>模型</label><input type="text" id="apiModel" placeholder="glm-5.1-highspeed"></div>
     <div class="form-group"><label>API Key</label><input type="password" id="apiKey" placeholder="输入你的 API Key"></div>
+    <div class="form-group"><label>Temperature <span id="tempVal" style="float:right;color:var(--accent)">0.5</span></label><input type="range" id="apiTemp" min="0" max="1" step="0.05" value="0.5" style="width:100%"></div>
+    <div class="form-group"><label>Max Tokens <span id="tokensVal" style="float:right;color:var(--accent)">8192</span></label><input type="range" id="apiTokens" min="1024" max="16384" step="1024" value="8192" style="width:100%"></div>
     <div class="modal-actions"><button class="btn" id="cancelSettings">取消</button><button class="btn btn-primary" id="saveSettings">保存</button></div>
   </div>
 </div>
@@ -196,7 +295,30 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
     <div class="modal-actions"><button class="btn" id="cancelIterate">取消</button><button class="btn btn-primary" id="applyIterate">应用修改</button></div>
   </div>
 </div>
+<div class="modal-overlay" id="versionModal">
+  <div class="modal" style="width:660px;max-width:90vw">
+    <h3>版本历史</h3>
+    <div class="vtree-canvas-wrap" id="versionTreeContent">
+      <canvas id="versionTreeCanvas"></canvas>
+    </div>
+    <div class="modal-actions"><button class="btn" id="closeVersionModal">关闭</button></div>
+  </div>
+</div>
 <div class="ctx-menu" id="ctxMenu"></div>
+<div class="modal-overlay" id="templateLibModal">
+  <div class="modal" style="width:520px">
+    <h3>布局模板</h3>
+    <div id="templateLibList" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:360px;overflow-y:auto"></div>
+    <div class="modal-actions"><button class="btn" id="closeTemplateLib">关闭</button></div>
+  </div>
+</div>
+<div class="modal-overlay" id="sketchModal">
+  <div class="modal" style="width:500px">
+    <h3>我的草图</h3>
+    <div id="sketchList" style="max-height:320px;overflow-y:auto"></div>
+    <div class="modal-actions"><button class="btn" id="closeSketchModal">关闭</button></div>
+  </div>
+</div>
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
@@ -218,14 +340,16 @@ const THEMES={
 // ━━━━━━━━━━ Config ━━━━━━━━━━
 const _ep=localStorage.getItem('s2u_endpoint');
 if(_ep&&_ep.startsWith('http'))localStorage.removeItem('s2u_endpoint');
-const CONFIG={endpoint:'/api/messages',model:'glm-5.1-highspeed',apiKey:'',style:localStorage.getItem('s2u_style')||'modern',styleCustom:localStorage.getItem('s2u_stylecustom')||''};
+const CONFIG={endpoint:'/api/messages',model:'glm-5.1-highspeed',apiKey:'',style:localStorage.getItem('s2u_style')||'modern',styleCustom:localStorage.getItem('s2u_stylecustom')||'',template:localStorage.getItem('s2u_template')||'full',temperature:parseFloat(localStorage.getItem('s2u_temp')||'0.5'),maxTokens:parseInt(localStorage.getItem('s2u_tokens')||'8192')};
 
 // Load cached API config from server on startup
 (async()=>{try{const r=await fetch('/api/cache');if(r.ok){const d=await r.json();if(d.apiKey)CONFIG.apiKey=d.apiKey;if(d.model)CONFIG.model=d.model;if(d.endpoint)CONFIG.endpoint=d.endpoint;document.getElementById('apiKey').value=CONFIG.apiKey;document.getElementById('apiModel').value=CONFIG.model;document.getElementById('apiEndpoint').value=CONFIG.endpoint}}catch(e){}})();
 
 const GRID_COLS=12,GRID_ROWS=8;
 let canvas,generating=false,currentTool='draw',isDrawing=false,shapeStart=null,tempShape=null,gridVisible=true,abortCtrl=null;
-let lastGenHTML='',lastGenLayout=null,lastGenRegions=[],contextTarget=null;
+let lastGenHTML='',lastGenLayout=null,lastGenRegions=[],contextTarget=null,currentViewport='desktop';
+let undoStack=[],redoStack=[],undoSuspend=false;
+let versionTree=null,projectName='';
 
 // ━━━━━━━━━━ Init ━━━━━━━━━━
 document.addEventListener('DOMContentLoaded',()=>{
@@ -241,6 +365,53 @@ function initCanvas(){
   let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{canvas.setDimensions({width:w.clientWidth,height:w.clientHeight});canvas.renderAll()},200)});
   canvas.on('mouse:down',onDown);canvas.on('mouse:move',onMove);canvas.on('mouse:up',onUp);
   canvas.on('path:created',opt=>{opt.path.set({selectable:false,evented:false})});
+  // Undo/redo snapshot tracking
+  const evts=['object:added','object:removed','object:modified'];
+  evts.forEach(ev=>canvas.on(ev,opt=>{if(undoSuspend)return;if(opt.target&&opt.target.type==='activeSelection')return;saveSnapshot()}));
+  // Re-label shapes after move/resize
+  canvas.on('object:modified',opt=>{if(opt.target&&opt.target._uiLabel&&opt.target.type!=='textbox'&&opt.target.type!=='i-text')autoLabel(opt.target)});
+  // Zoom & Pan
+  let zoomLevel=1,spaceDown=false,isPanning=false,lastPanPos=null;
+  canvas.on('mouse:wheel',opt=>{
+    const delta=opt.e.deltaY;let zoom=canvas.getZoom();zoom*=0.999**delta;zoom=Math.min(4,Math.max(.25,zoom));
+    canvas.zoomToPoint({x:opt.e.offsetX,y:opt.e.offsetY},zoom);zoomLevel=zoom;updateZoomUI();opt.e.preventDefault();opt.e.stopPropagation();
+  });
+  canvas.on('mouse:down',opt=>{if(!spaceDown)return;isPanning=true;lastPanPos={x:opt.e.clientX,y:opt.e.clientY};canvas.selection=false;canvas.defaultCursor='grabbing'});
+  canvas.on('mouse:move',opt=>{if(!isPanning||!lastPanPos)return;const dx=opt.e.clientX-lastPanPos.x,dy=opt.e.clientY-lastPanPos.y;lastPanPos={x:opt.e.clientX,y:opt.e.clientY};canvas.relativePan({x:dx,y:dy})});
+  canvas.on('mouse:up',()=>{if(isPanning){isPanning=false;if(currentTool==='draw')canvas.freeDrawingCursor='crosshair';else canvas.defaultCursor='crosshair'}});
+  document.addEventListener('keydown',e=>{if(e.code==='Space'&&!e.repeat&&!e.target.closest('input,textarea,select')){e.preventDefault();spaceDown=true;if(!generating)canvas.defaultCursor='grab'}});
+  document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceDown=false;if(!generating){canvas.defaultCursor=currentTool==='draw'?'crosshair':'crosshair';canvas.selection=currentTool==='select'}}});
+  document.getElementById('zoomInBtn').addEventListener('click',()=>{zoomLevel=Math.min(4,zoomLevel*1.2);canvas.zoomToPoint({x:canvas.getWidth()/2,y:canvas.getHeight()/2},zoomLevel);updateZoomUI()});
+  document.getElementById('zoomOutBtn').addEventListener('click',()=>{zoomLevel=Math.max(.25,zoomLevel/1.2);canvas.zoomToPoint({x:canvas.getWidth()/2,y:canvas.getHeight()/2},zoomLevel);updateZoomUI()});
+  document.getElementById('zoomLevel').addEventListener('dblclick',()=>{zoomLevel=1;canvas.setViewportTransform([1,0,0,1,0,0]);updateZoomUI()});
+  function updateZoomUI(){document.getElementById('zoomLevel').textContent=Math.round(zoomLevel*100)+'%'}
+  // Snap to guides
+  const SNAP_THRESHOLD=5;
+  canvas.on('object:moving',opt=>{snapObject(opt.target)});
+  canvas.on('object:scaling',opt=>{snapObject(opt.target)});
+  // Layer panel
+  const layerEvtDebounce={timer:null};
+  ['object:added','object:removed','object:modified'].forEach(ev=>canvas.on(ev,()=>{clearTimeout(layerEvtDebounce.timer);layerEvtDebounce.timer=setTimeout(renderLayerPanel,50)}));
+  document.getElementById('layerToggle').addEventListener('click',()=>{const p=document.getElementById('layerPanel');p.classList.toggle('open');document.getElementById('layerToggle').textContent=p.classList.contains('open')?'▾ 图层 (<span id="layerCount">0</span>)':'▸ 图层 (<span id="layerCount">0</span>)';renderLayerPanel()});
+  canvas.on('selection:created',renderLayerPanel);canvas.on('selection:updated',renderLayerPanel);canvas.on('selection:cleared',renderLayerPanel);
+  canvas.on('selection:created',updatePropPanel);canvas.on('selection:updated',updatePropPanel);canvas.on('selection:cleared',hidePropPanel);
+  // Property panel input handlers
+  ['propLeft','propTop','propWidth','propHeight'].forEach(id=>{
+    document.getElementById(id).addEventListener('change',e=>{
+      const obj=canvas.getActiveObject();if(!obj||!obj._uiLabel)return;
+      const cw=canvas.getWidth(),ch=canvas.getHeight();
+      const val=parseFloat(e.target.value);if(isNaN(val))return;
+      if(id==='propLeft')obj.set({left:val/100*cw});
+      else if(id==='propTop')obj.set({top:val/100*ch});
+      else if(id==='propWidth')obj.set({scaleX:1,scaleY:1,width:val/100*cw});
+      else if(id==='propHeight')obj.set({scaleX:1,scaleY:1,height:val/100*ch});
+      obj.setCoords();canvas.renderAll();autoLabel(obj);
+    });
+  });
+  document.getElementById('propLabel').addEventListener('change',e=>{
+    const obj=canvas.getActiveObject();if(!obj)return;
+    if(e.target.value){obj._uiLabel=e.target.value;canvas.renderAll()}else{autoLabel(obj)}
+  });
   // Right-click via Fabric event system (DOM contextmenu doesn't reach Fabric's canvas)
   canvas.on('mouse:down',function(opt){
     if(opt.e.button!==2)return; // only right-click
@@ -253,6 +424,54 @@ function initCanvas(){
   setS('ok',`就绪 — 画布 ${canvas.getWidth()}×${canvas.getHeight()}`);
 }
 
+// ━━━━━━━━━━ Snap System ━━━━━━━━━━
+function snapObject(obj){
+  if(!obj||obj.type==='path')return;
+  const cw=canvas.getWidth(),ch=canvas.getHeight();
+  const b=obj.getBoundingRect();
+  const others=canvas.getObjects().filter(o=>o!==obj&&o.type!=='path'&&o.type!=='activeSelection');
+  const guides=document.getElementById('snapGuides');guides.innerHTML='';
+  const lines=[];let snappedX=null,snappedY=null;
+  // Collect snap points from canvas edges and other shapes
+  const pts=[];
+  // Canvas edges + center
+  pts.push({x:0,x2:cw,y:0,y2:ch},{x:cw/2,x2:cw/2,y:ch/2,y2:ch/2});
+  for(const o of others){const ob=o.getBoundingRect();pts.push(ob)}
+  // Try snap left, right, centerX
+  const objL=b.left,objR=b.left+b.width,objCX=b.left+b.width/2,objCY=b.top+b.height/2;
+  const objT=b.top,objB=b.top+b.height;
+  for(const p of pts){
+    const pR=(p.x2||p.x||0)+(p.width||0),pB=(p.y2||p.y||0)+(p.height||0);
+    const pCX=(p.x||p.left||0)+(pR-(p.x||p.left||0))/2,pCY=(p.y||p.top||0)+(pB-(p.y||p.top||0))/2;
+    const targets=[
+      {v:objL,snapTo:[p.x||p.left||0,pR,pCX]},
+      {v:objR,snapTo:[p.x||p.left||0,pR,pCX]},
+      {v:objCX,snapTo:[pCX]},
+    ];
+    for(const t of targets){for(const s of t.snapTo){if(s!=null&&Math.abs(t.v-s)<SNAP_THRESHOLD){
+      const diff=s-t.v;if(!snappedX||Math.abs(diff)<Math.abs(snappedX))snappedX=diff;
+      lines.push({dir:'v',pos:s});
+    }}}
+    // Vertical snap
+    const vTargets=[{v:objT,snapTo:[p.y||p.top||0,pB,pCY]},{v:objB,snapTo:[p.y||p.top||0,pB,pCY]},{v:objCY,snapTo:[pCY]}];
+    for(const t of vTargets){for(const s of t.snapTo){if(s!=null&&Math.abs(t.v-s)<SNAP_THRESHOLD){
+      const diff=s-t.v;if(!snappedY||Math.abs(diff)<Math.abs(snappedY))snappedY=diff;
+      lines.push({dir:'h',pos:s});
+    }}}
+  }
+  if(snappedX)obj.set({left:obj.left+snappedX});
+  if(snappedY)obj.set({top:obj.top+snappedY});
+  obj.setCoords();
+  // Draw guide lines
+  const shown=new Set();
+  for(const l of lines){
+    const key=l.dir+l.pos;if(shown.has(key))continue;shown.add(key);
+    const el=document.createElement('div');el.className=l.dir==='h'?'snap-guide snap-guide-h':'snap-guide snap-guide-v';
+    if(l.dir==='h')el.style.top=l.pos+'px';else el.style.left=l.pos+'px';
+    guides.appendChild(el);
+  }
+}
+
 // ━━━━━━━━━━ Toolbar ━━━━━━━━━━
 function initToolbar(){
   document.querySelectorAll('.tool-btn[data-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
@@ -260,6 +479,7 @@ function initToolbar(){
   document.getElementById('undoBtn').addEventListener('click',undo);
   document.getElementById('clearBtn').addEventListener('click',clearAll);
   document.getElementById('iterateBtn').addEventListener('click',()=>openIterateModal(null));
+  document.getElementById('undoIterateBtn').addEventListener('click',openVersionModal);
   document.getElementById('cancelIterate').addEventListener('click',closeIterateModal);
   document.getElementById('applyIterate').addEventListener('click',()=>{
     const opts=document.getElementById('iterateScopeOptions');
@@ -271,6 +491,15 @@ function initToolbar(){
     closeIterateModal();iterateBeautify(regionId,instruction);
   });
   document.getElementById('iterateModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeIterateModal()});
+  document.getElementById('saveSketchBtn').addEventListener('click',saveSketch);
+  document.getElementById('loadSketchBtn').addEventListener('click',openSketchModal);
+  document.getElementById('closeSketchModal').addEventListener('click',()=>document.getElementById('sketchModal').classList.remove('visible'));
+  document.getElementById('sketchModal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.remove('visible')});
+  document.getElementById('templateLibBtn').addEventListener('click',openTemplateLib);
+  document.getElementById('closeTemplateLib').addEventListener('click',()=>document.getElementById('templateLibModal').classList.remove('visible'));
+  document.getElementById('templateLibModal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.remove('visible')});
+  document.getElementById('componentBtn').addEventListener('click',toggleComponentDrawer);
+  initComponentDrawer();
   // ── Global event handlers ──
   // 1) Block browser default right-click menu everywhere
   document.addEventListener('contextmenu',e=>e.preventDefault());
@@ -301,7 +530,7 @@ function onDown(opt){
   if(opt.e && opt.e.button !== 0)return; // 仅允许左键进行绘制和擦除
   // Eraser
   if(currentTool==='eraser'&&opt.target){canvas.remove(opt.target);canvas.renderAll();return}
-  if(!['rect','circle','triangle','text'].includes(currentTool))return;
+  if(!['rect','circle','triangle','text','line','arrow'].includes(currentTool))return;
   isDrawing=true;const p=canvas.getPointer(opt.e);shapeStart={x:p.x,y:p.y};
   if(currentTool==='rect'){tempShape=new fabric.Rect({...SHAPE_STYLE,left:p.x,top:p.y,width:0,height:0});canvas.add(tempShape)}
   else if(currentTool==='circle'){tempShape=new fabric.Ellipse({...SHAPE_STYLE,left:p.x,top:p.y,rx:0,ry:0});canvas.add(tempShape)}
@@ -311,6 +540,12 @@ function onDown(opt){
     tempShape=new fabric.Rect({left:p.x,top:p.y,width:0,height:0,fill:'rgba(99,102,241,.03)',stroke:'#6366f1',strokeWidth:1,strokeDashArray:[4,4],rx:2,ry:2,selectable:false,evented:false});
     canvas.add(tempShape);
   }
+  else if(currentTool==='line'){
+    tempShape=new fabric.Line([p.x,p.y,p.x,p.y],{stroke:'#6366f1',strokeWidth:2,selectable:false,evented:false});canvas.add(tempShape);
+  }
+  else if(currentTool==='arrow'){
+    tempShape=new fabric.Line([p.x,p.y,p.x,p.y],{stroke:'#6366f1',strokeWidth:2,selectable:false,evented:false});tempShape._isArrow=true;canvas.add(tempShape);
+  }
 }
 function onMove(opt){
   if(!isDrawing||!tempShape)return;const p=canvas.getPointer(opt.e),s=shapeStart;
@@ -318,6 +553,7 @@ function onMove(opt){
   else if(currentTool==='circle'){tempShape.set({left:Math.min(s.x,p.x),top:Math.min(s.y,p.y),rx:Math.abs(p.x-s.x)/2,ry:Math.abs(p.y-s.y)/2})}
   else if(currentTool==='triangle'){tempShape.set({left:Math.min(s.x,p.x),top:Math.min(s.y,p.y),width:Math.abs(p.x-s.x),height:Math.abs(p.y-s.y)})}
   else if(currentTool==='text'){const w=p.x-s.x,h=p.y-s.y;tempShape.set({left:w>0?s.x:p.x,top:h>0?s.y:p.y,width:Math.abs(w),height:Math.abs(h)})}
+  else if(currentTool==='line'||currentTool==='arrow'){tempShape.set({x2:p.x,y2:p.y})}
   canvas.renderAll();
 }
 function onUp(){
@@ -337,6 +573,24 @@ function onUp(){
       });
       t._uiLabel='文字';
       canvas.add(t);canvas.setActiveObject(t);t.enterEditing();t.selectAll();
+    }
+    canvas.renderAll();tempShape=null;return;
+  }
+  if(currentTool==='line'||currentTool==='arrow'){
+    const dx=tempShape.x2-tempShape.x1,dy=tempShape.y2-tempShape.y1;
+    if(Math.sqrt(dx*dx+dy*dy)<5){canvas.remove(tempShape);canvas.renderAll();tempShape=null;return}
+    if(tempShape._isArrow){
+      // Add arrowhead triangle
+      const angle=Math.atan2(dy,dx),hs=12;
+      const ax=tempShape.x2,ay=tempShape.y2;
+      const p1x=ax-hs*Math.cos(angle-Math.PI/6),p1y=ay-hs*Math.sin(angle-Math.PI/6);
+      const p2x=ax-hs*Math.cos(angle+Math.PI/6),p2y=ay-hs*Math.sin(angle+Math.PI/6);
+      const arrowHead=new fabric.Triangle({left:ax,top:ay,width:hs*1.5,height:hs,fill:'#6366f1',angle:(angle*180/Math.PI)+90,originX:'center',originY:'center',selectable:false,evented:false});
+      tempShape.set({selectable:true,evented:true});tempShape._uiLabel='指示箭头';
+      arrowHead._uiLabel='指示箭头';arrowHead._isArrowHead=true;
+      canvas.add(arrowHead);
+    }else{
+      tempShape._uiLabel='分隔线';
     }
     canvas.renderAll();tempShape=null;return;
   }
@@ -488,6 +742,15 @@ async function beautify(){
   const theme=THEMES[CONFIG.style]||THEMES.modern;
   const themeStyle=CONFIG.style==='custom'?(CONFIG.styleCustom||'现代简洁'):(theme.style);
 
+  const PROMPT_TEMPLATES={
+    full:{name:'完整页面',extra:'3. 每个区域必须有真实丰富的中文内容，内容要符合用户的文字标注描述'},
+    layout:{name:'仅布局框架',extra:'3. 每个区域用占位文字和灰色背景代替真实内容，不需要实际文字'},
+    animated:{name:'带交互动效',extra:'3. 每个区域必须有真实丰富的中文内容\n4. 添加 CSS hover 效果、transition 过渡动画、按钮点击反馈等交互特效'},
+    mobile:{name:'移动端适配',extra:'3. 每个区域必须有真实丰富的中文内容\n4. 使用 @media 查询实现移动端适配，默认按移动端宽度设计，适配桌面端'},
+    form:{name:'表单专用',extra:'3. 侧重表单元素：输入框、选择框、按钮等\n4. 包含表单验证的 HTML5 属性和合理的 placeholder'}
+  };
+  const tpl=PROMPT_TEMPLATES[CONFIG.template]||PROMPT_TEMPLATES.full;
+
   const textPrompt=`这是一张网页 UI 布局草图截图。草图中用矩形、圆形、三角形等形状表示各个页面区域，用户还用文字工具在画布上写了需求说明。
 
 以下是精准的布局结构分析：
@@ -500,13 +763,13 @@ ${theme.tokens}
 要求：
 1. 严格按照上面的布局结构生成页面，每个区域的宽度和位置要对应列数
 2. 用户在画布上写的文字标注（如有"用户标注的需求说明"部分）是核心需求，必须严格遵循！用户写的风格要求、内容要求、每个区域的功能描述都必须在最终页面中体现
-3. 每个区域必须有真实丰富的中文内容，内容要符合用户的文字标注描述
-4. 使用 CSS Grid 或 Flexbox 还原布局
-5. CSS 使用 --c-* 变量
-6. CSS 简洁，不写复杂动画
-7. 完整 HTML（DOCTYPE + style + body）
-8. 只输出代码
-9. 每个布局区域必须用 <section> 标签包裹，格式为：<section id="region-N" data-label="标签名">，N 从 1 开始按从上到下从左到右的顺序编号`;
+${tpl.extra}
+5. 使用 CSS Grid 或 Flexbox 还原布局
+6. CSS 使用 --c-* 变量
+7. CSS 简洁，不写复杂动画（除非模板要求）
+8. 完整 HTML（DOCTYPE + style + body）
+9. 只输出代码
+10. 每个布局区域必须用 <section> 标签包裹，格式为：<section id="region-N" data-label="标签名">，N 从 1 开始按从上到下从左到右的顺序编号`;
 
   try{
     const resp=await fetch(CONFIG.endpoint,{
@@ -514,13 +777,13 @@ ${theme.tokens}
       headers:{'Content-Type':'application/json','x-api-key':CONFIG.apiKey,'anthropic-version':'2023-06-01'},
       signal:abortCtrl.signal,
       body:JSON.stringify({
-        model:CONFIG.model,max_tokens:8192,
+        model:CONFIG.model,max_tokens:CONFIG.maxTokens,
         system:'你是专业前端设计师。根据用户的 UI 草图截图和布局描述生成完整 HTML 页面。严格还原描述中的布局结构。只输出代码。',
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:'image/png',data:base64}},
           {type:'text',text:textPrompt}
         ]}],
-        stream:true,temperature:0.5
+        stream:true,temperature:CONFIG.temperature
       })
     });
     if(!resp.ok){const t=await resp.text();throw new Error(`API ${resp.status}: ${t.slice(0,200)}`)}
@@ -559,6 +822,7 @@ ${theme.tokens}
     // Save generation state for iterative editing
     lastGenHTML=html;lastGenLayout=layoutDesc;
     buildRegionMap(html);
+    saveVersion(html,'初始美化');
     // Switch UI: 美化 → 重新生成, show 迭代修改
     const bBtn=document.getElementById('beautifyBtn');bBtn.querySelector('.btn-text').textContent='重新生成';
     const iBtn=document.getElementById('iterateBtn');iBtn.style.display='flex';
@@ -705,8 +969,9 @@ function locateShapeByRegion(regionId){
   let count=0;for(const s of sorted){if(s.label===region.label){if(count===labelOrder){found=s.obj;break}count++}}
   if(found){
     canvas.setActiveObject(found);canvas.renderAll();
-    const b=found.getBoundingRect();
-    canvas.absolutePan({x:b.left-canvas.getWidth()/3,y:b.top-canvas.getHeight()/3});
+    const z=canvas.getZoom();
+    const cx=found.left+found.getScaledWidth()/2, cy=found.top+found.getScaledHeight()/2;
+    canvas.absolutePan({x:canvas.getWidth()/2-cx*z,y:canvas.getHeight()/2-cy*z});
     toast('info',`已定位到「${region.label}」`);
   }else toast('info','画布上未找到对应形状');
 }
@@ -715,6 +980,8 @@ function locateShapeByRegion(regionId){
 function injectPreviewMenu(){
   const iframe=document.getElementById('previewFrame');
   const doc=iframe.contentDocument;if(!doc)return;
+  // Inject highlight animation style
+  let s=doc.getElementById('_s2u_style');if(!s){s=doc.createElement('style');s.id='_s2u_style';s.textContent='@keyframes _s2u_flash{0%{outline:2px solid #6366f1;outline-offset:2px}100%{outline:2px solid transparent;outline-offset:2px}}._s2u_flash{animation:_s2u_flash .6s ease}';doc.head.appendChild(s)}
   // Right-click on a region → show preview context menu
   doc.addEventListener('contextmenu',e=>{
     e.preventDefault();
@@ -730,6 +997,21 @@ function injectPreviewMenu(){
     }else{
       showPreviewContextMenu(e.clientX+iframeRect.left,e.clientY+iframeRect.top,null);
     }
+  });
+  // Left-click on a region → flash highlight + locate on canvas
+  doc.addEventListener('click',e=>{
+    if(!lastGenHTML)return;
+    const target=e.target.closest('[id^="region-"], header, footer, nav');
+    if(!target)return;
+    e.preventDefault();
+    let id=target.id;
+    if(!id && (target.tagName==='HEADER' || target.tagName==='FOOTER' || target.tagName==='NAV')){
+      id=target.tagName.toLowerCase();
+    }
+    if(!id)return;
+    target.classList.remove('_s2u_flash');void target.offsetWidth;target.classList.add('_s2u_flash');
+    setTimeout(()=>target.classList.remove('_s2u_flash'),600);
+    locateShapeByRegion(id);
   });
   // Any click inside iframe closes the parent context menu
   doc.addEventListener('mousedown',()=>hideContextMenu());
@@ -788,11 +1070,11 @@ async function iterateBeautify(regionId,instruction){
       if(!regionHTML){toast('error','未找到该组件');return}
       const region=lastGenRegions.find(r=>r.id===regionId);
       const tag=(regionId==='header'||regionId==='footer'||regionId==='nav')?regionId:'section';
-      systemPrompt=`你是专业前端设计师。用户会给你一个网页组件（一个 <${tag}> 标签）和一个修改指令。请只修改该组件，保持其 HTML 结构完整性${tag==='section'?'，且 id 和 data-label 属性不变':'' }。只输出修改后的该 <${tag}> 标签。`;
+      systemPrompt=`你是专业前端设计师。用户会给你一个网页组件（一个 <${tag}> 标签）和一个修改指令。请只修改该组件，保持其 HTML 结构完整性${tag==='section'?'，且 id 和 data-label 属性不变':'' }。只输出修改后的该 <${tag}> 标签。在输出的代码最开头加一行注释总结修改内容，格式：<!-- change-summary: 15字以内中文描述你做了什么修改 -->`;
       userContent=`当前组件代码：\n${regionHTML}\n\n用户修改指令：${instruction}`;
     }else{
       // Whole page
-      systemPrompt='你是专业前端设计师。用户会给你一个完整的 HTML 页面和一个修改指令。请在已有页面基础上进行修改，保持整体结构 and 风格不变，只做用户要求的变化。只输出修改后的完整 HTML。';
+      systemPrompt='你是专业前端设计师。用户会给你一个完整的 HTML 页面和一个修改指令。请在已有页面基础上进行修改，保持整体结构 and 风格不变，只做用户要求的变化。只输出修改后的完整 HTML。在输出的代码最开头加一行注释总结修改内容，格式：<!-- change-summary: 15字以内中文描述你做了什么修改 -->';
       const layoutDesc=analyzeLayout();
       let layoutNote='';
       if(layoutDesc&&layoutDesc!==lastGenLayout)layoutNote=`\n\n更新后的布局结构：\n${layoutDesc}`;
@@ -836,6 +1118,10 @@ async function iterateBeautify(regionId,instruction){
     }else{
       finalHTML=html;
     }
+    // Extract AI-generated change summary
+    let aiSummary='';
+    const sm=finalHTML.match(/<!--\s*change-summary:\s*(.*?)\s*-->/);
+    if(sm){aiSummary=sm[1];finalHTML=finalHTML.replace(/<!--\s*change-summary:\s*.*?\s*-->\n?/,'')}
 
     const f=document.getElementById('previewFrame');f.contentDocument.open();f.contentDocument.write(finalHTML);f.contentDocument.close();
     injectPreviewMenu();
@@ -845,6 +1131,7 @@ async function iterateBeautify(regionId,instruction){
     document.getElementById('downloadBtn').style.display='inline-block';
     lastGenHTML=finalHTML;
     buildRegionMap(finalHTML);
+    saveVersion(finalHTML,'迭代修改',aiSummary||instruction);
     setS('ok',`迭代完成 — ${finalHTML.length} 字符`);toast('success','迭代修改完成！');
   }catch(e){
     if(e.name==='AbortError')return;
@@ -854,6 +1141,14 @@ async function iterateBeautify(regionId,instruction){
 }
 
 // ━━━━━━━━━━ Style / Tabs / Settings / Undo ━━━━━━━━━━
+function setViewport(mode){
+  currentViewport=mode;
+  const iframe=document.getElementById('previewFrame');
+  const sizes={desktop:'100%',tablet:'768px',mobile:'375px'};
+  iframe.style.width=sizes[mode];
+  iframe.style.boxShadow=mode==='desktop'?'none':'0 0 0 1px var(--border), 0 4px 24px rgba(0,0,0,.3)';
+  document.querySelectorAll('.vp-btn').forEach(b=>b.classList.toggle('active',b.dataset.vp===mode));
+}
 function initStyle(){
   const sel=document.getElementById('styleSelect'),cust=document.getElementById('styleCustom');
   sel.value=CONFIG.style;if(CONFIG.style==='custom'){cust.classList.add('visible');cust.value=CONFIG.styleCustom}
@@ -864,6 +1159,11 @@ function initTabs(){
   document.getElementById('copyBtn').addEventListener('click',()=>{const c=document.getElementById('codeView').textContent;if(!c)return;navigator.clipboard.writeText(c).then(()=>{const b=document.getElementById('copyBtn');b.textContent='已复制!';b.style.color='var(--success)';setTimeout(()=>{b.textContent='复制代码';b.style.color=''},2000)})});
   document.getElementById('downloadBtn').addEventListener('click',downloadProject);
   document.querySelectorAll('.preview-tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.preview-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');const m=t.dataset.tab;document.getElementById('previewFrame').style.display=m==='preview'?'block':'none';document.getElementById('codeView').classList.toggle('visible',m==='code');document.getElementById('copyBtn').style.display=(m==='code'&&document.getElementById('codeView').textContent)?'block':'none';document.getElementById('downloadBtn').style.display=lastGenHTML?'inline-block':'none'}));
+  document.querySelectorAll('.vp-btn').forEach(b=>b.addEventListener('click',()=>setViewport(b.dataset.vp)));
+  // Version tree modal
+  document.getElementById('versionBtn').addEventListener('click',openVersionModal);
+  document.getElementById('closeVersionModal').addEventListener('click',closeVersionModal);
+  document.getElementById('versionModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeVersionModal()});
 }
 
 async function downloadProject(){
@@ -883,6 +1183,12 @@ async function downloadProject(){
 function initSettings(){
   document.getElementById('settingsBtn').addEventListener('click',openSettings);document.getElementById('cancelSettings').addEventListener('click',closeSettings);document.getElementById('saveSettings').addEventListener('click',saveSettings);document.getElementById('settingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSettings()});
   document.getElementById('apiEndpoint').value=CONFIG.endpoint;document.getElementById('apiModel').value=CONFIG.model;document.getElementById('apiKey').value=CONFIG.apiKey;
+  document.getElementById('apiTemp').value=CONFIG.temperature;document.getElementById('tempVal').textContent=CONFIG.temperature;
+  document.getElementById('apiTokens').value=CONFIG.maxTokens;document.getElementById('tokensVal').textContent=CONFIG.maxTokens;
+  document.getElementById('apiTemp').addEventListener('input',e=>{document.getElementById('tempVal').textContent=e.target.value});
+  document.getElementById('apiTokens').addEventListener('input',e=>{document.getElementById('tokensVal').textContent=e.target.value});
+  document.getElementById('templateSelect').value=CONFIG.template;
+  document.getElementById('templateSelect').addEventListener('change',e=>{CONFIG.template=e.target.value;localStorage.setItem('s2u_template',e.target.value)});
 }
 function openSettings(){document.getElementById('settingsModal').classList.add('visible')}
 function closeSettings(){document.getElementById('settingsModal').classList.remove('visible')}
@@ -890,13 +1196,455 @@ function saveSettings(){
   CONFIG.apiKey=document.getElementById('apiKey').value.trim();
   CONFIG.model=document.getElementById('apiModel').value.trim()||CONFIG.model;
   CONFIG.endpoint=document.getElementById('apiEndpoint').value.trim()||CONFIG.endpoint;
-  // Persist to server cache file
-  fetch('/api/cache',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:CONFIG.apiKey,model:CONFIG.model,endpoint:CONFIG.endpoint})}).catch(()=>{});
+  CONFIG.temperature=parseFloat(document.getElementById('apiTemp').value);
+  CONFIG.maxTokens=parseInt(document.getElementById('apiTokens').value);
+  localStorage.setItem('s2u_temp',CONFIG.temperature);localStorage.setItem('s2u_tokens',CONFIG.maxTokens);
+  fetch('/api/cache',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:CONFIG.apiKey,model:CONFIG.model,endpoint:CONFIG.endpoint,temperature:CONFIG.temperature,maxTokens:CONFIG.maxTokens})}).catch(()=>{});
   closeSettings();if(CONFIG.apiKey)toast('success','设置已保存');else toast('error','未输入 API Key');
 }
-function undo(){const o=canvas.getObjects();if(o.length){canvas.remove(o[o.length-1]);canvas.renderAll()}}
-function clearAll(){if(!canvas.getObjects().length&&!lastGenHTML)return;if(!confirm('清空？'))return;canvas.clear();canvas.backgroundColor='#fff';canvas.renderAll();const f=document.getElementById('previewFrame');f.contentDocument.open();f.contentDocument.write('');f.contentDocument.close();document.getElementById('codeView').textContent='';document.getElementById('emptyState').style.display='flex';document.getElementById('copyBtn').style.display='none';document.getElementById('downloadBtn').style.display='none';lastGenHTML='';lastGenLayout=null;lastGenRegions=[];document.getElementById('beautifyBtn').querySelector('.btn-text').textContent='美化';document.getElementById('iterateBtn').style.display='none';setS('ok','就绪')}
-function initKeyboard(){document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;if(canvas.getActiveObject()?.isEditing)return;const k=e.key.toLowerCase();if(k==='d')setTool('draw');else if(k==='r')setTool('rect');else if(k==='c')setTool('circle');else if(k==='g')setTool('triangle');else if(k==='t')setTool('text');else if(k==='v')setTool('select');else if(k==='e')setTool('eraser');else if(k==='z'&&(e.ctrlKey||e.metaKey)){e.preventDefault();undo()}else if(k==='delete'||k==='backspace'){const a=canvas.getActiveObject();if(a&&!a.isEditing){canvas.remove(a);canvas.renderAll()}}})}
+function saveSnapshot(){if(undoStack.length>=50)undoStack.shift();undoStack.push(canvas.toJSON(['_uiLabel']));redoStack=[]}
+function undo(){if(!undoStack.length){toast('info','没有可撤销的操作');return}redoStack.push(canvas.toJSON(['_uiLabel']));const state=undoStack.pop();undoSuspend=true;canvas.loadFromJSON(state,()=>{canvas.renderAll();undoSuspend=false})}
+function redo(){if(!redoStack.length){toast('info','没有可重做的操作');return}undoStack.push(canvas.toJSON(['_uiLabel']));const state=redoStack.pop();undoSuspend=true;canvas.loadFromJSON(state,()=>{canvas.renderAll();undoSuspend=false})}
+function clearAll(){if(!canvas.getObjects().length&&!lastGenHTML)return;if(!confirm('清空？'))return;canvas.clear();canvas.backgroundColor='#fff';canvas.renderAll();const f=document.getElementById('previewFrame');f.contentDocument.open();f.contentDocument.write('');f.contentDocument.close();document.getElementById('codeView').textContent='';document.getElementById('emptyState').style.display='flex';document.getElementById('copyBtn').style.display='none';document.getElementById('downloadBtn').style.display='none';lastGenHTML='';lastGenLayout=null;lastGenRegions=[];versionTree=null;projectName='';document.getElementById('beautifyBtn').querySelector('.btn-text').textContent='美化';document.getElementById('iterateBtn').style.display='none';setViewport('desktop');updateVersionUI();setS('ok','就绪')}
+
+// ━━━━━━━━━━ Version History (Tree) ━━━━━━━━━━
+async function saveVersion(html,label,instruction){
+  try{
+    const body={html,label:label||'',instruction:instruction||'',projectName};
+    if(versionTree&&versionTree.currentNode)body.currentNode=versionTree.currentNode;
+    const r=await fetch('/api/versions/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)return;
+    const d=await r.json();
+    if(d.ok){projectName=d.projectName;versionTree=d.tree;updateVersionUI()}
+  }catch(e){console.warn('saveVersion failed:',e)}
+}
+
+async function loadVersion(nodeId){
+  try{
+    // Update current pointer on server
+    await fetch('/api/versions/current',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectName,nodeId})});
+    // Load HTML
+    const r=await fetch(`/api/versions/load?project=${encodeURIComponent(projectName)}&node=${encodeURIComponent(nodeId)}`);
+    if(!r.ok)return;
+    const html=await r.text();
+    lastGenHTML=html;
+    if(versionTree)versionTree.currentNode=nodeId;
+    const f=document.getElementById('previewFrame');f.contentDocument.open();f.contentDocument.write(html);f.contentDocument.close();
+    injectPreviewMenu();
+    document.getElementById('codeView').textContent=html;
+    document.querySelector('[data-tab="preview"]').click();
+    buildRegionMap(html);
+    updateVersionUI();
+    const node=versionTree?.nodes?.[nodeId];
+    const name=node?.label||nodeId;
+    setS('ok',`已恢复: ${name}`);
+    toast('success',`已恢复: ${name}`);
+  }catch(e){toast('error','加载版本失败')}
+}
+
+function _getParent(nodeId){const n=versionTree?.nodes?.[nodeId];return n?.parent||null}
+function _getChildren(nodeId){
+  if(!versionTree?.nodes)return[];
+  return Object.keys(versionTree.nodes).filter(id=>versionTree.nodes[id].parent===nodeId);
+}
+
+function undoHTML(){
+  if(!versionTree?.currentNode)return;
+  const p=_getParent(versionTree.currentNode);
+  if(p)loadVersion(p);
+}
+function redoHTML(){
+  if(!versionTree?.currentNode)return;
+  const children=_getChildren(versionTree.currentNode);
+  if(children.length)loadVersion(children[children.length-1]);
+}
+
+function updateVersionUI(){
+  const undoIter=document.getElementById('undoIterateBtn');
+  const verBtn=document.getElementById('versionBtn');
+  const hasTree=versionTree&&versionTree.currentNode;
+  if(verBtn){
+    if(hasTree){
+      verBtn.style.display='inline-block';
+      const cnt=Object.keys(versionTree.nodes).length;
+      const cur=versionTree.currentNode;
+      verBtn.querySelector('.version-label').textContent=`${cur} (${cnt})`;
+    }else{verBtn.style.display='none'}
+  }
+  if(undoIter)undoIter.style.display=hasTree?'flex':'none';
+}
+
+// ━━━━━━ Version Tree Canvas ━━━━━━
+let _vtState=null;
+
+function openVersionModal(){
+  if(!versionTree||!Object.keys(versionTree.nodes).length){toast('info','还没有历史版本');return}
+  const modal=document.getElementById('versionModal');
+  renderVersionTree();
+  modal.classList.add('visible');
+  const cv=document.getElementById('versionTreeCanvas');
+  cv.onclick=function(e){
+    const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    if(!_vtState)return;
+    for(const id of Object.keys(_vtState.pos)){
+      const p=_vtState.pos[id];
+      if(mx>=p.x&&mx<=p.x+_vtState.NW&&my>=p.y&&my<=p.y+_vtState.NH){
+        if(id!==versionTree.currentNode){loadVersion(id);closeVersionModal()}
+        return;
+      }
+    }
+  };
+  cv.onmousemove=function(e){
+    const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    if(!_vtState)return;
+    let found=null;
+    for(const id of Object.keys(_vtState.pos)){
+      const p=_vtState.pos[id];
+      if(mx>=p.x&&mx<=p.x+_vtState.NW&&my>=p.y&&my<=p.y+_vtState.NH){found=id;break}
+    }
+    if(found!==_vtState.hover){_vtState.hover=found;cv.style.cursor=found?'pointer':'default';_drawTree()}
+  };
+  cv.onmouseleave=function(){if(_vtState&&_vtState.hover){_vtState.hover=null;_drawTree()}}
+}
+function closeVersionModal(){document.getElementById('versionModal').classList.remove('visible')}
+
+function renderVersionTree(){
+  const cv=document.getElementById('versionTreeCanvas');
+  const wrap=document.getElementById('versionTreeContent');
+  if(!versionTree||!versionTree.nodes)return;
+  const dpr=window.devicePixelRatio||1;
+  const NW=160,NH=72,HG=32,VG=64,PAD=32;
+  const nodes=versionTree.nodes,pos={};
+  function ch(id){return Object.keys(nodes).filter(n=>nodes[n].parent===id)}
+  const swM={};
+  function sw(id){if(swM[id])return swM[id];const c=ch(id);if(!c.length){swM[id]=NW;return NW}let w=0;c.forEach((ci,i)=>{w+=sw(ci);if(i<c.length-1)w+=HG});swM[id]=Math.max(NW,w);return swM[id]}
+  function lay(id,x,y){
+    const s=sw(id),c=ch(id);
+    pos[id]={x:x+s/2-NW/2,y,cx:x+s/2,cy:y+NH/2};
+    if(c.length){
+      let tw=0;c.forEach((ci,i)=>{tw+=sw(ci);if(i<c.length-1)tw+=HG});
+      let cx=x+(s-tw)/2;
+      c.forEach(ci=>{lay(ci,cx,y+NH+VG);cx+=sw(ci)+HG});
+    }
+  }
+  let rx=PAD;
+  const roots=Object.keys(nodes).filter(id=>nodes[id].parent===null);
+  roots.forEach(rid=>{lay(rid,rx,PAD);rx+=sw(rid)+HG*2});
+  let mX=0,mY=0;
+  Object.values(pos).forEach(p=>{mX=Math.max(mX,p.x+NW);mY=Math.max(mY,p.y+NH)});
+  const cw=Math.max(wrap.clientWidth||440,mX+PAD),cht=Math.max(340,mY+PAD);
+  cv.style.width=cw+'px';cv.style.height=cht+'px';
+  cv.width=cw*dpr;cv.height=cht*dpr;
+  _vtState={pos,NW,NH,cw,ch:cht,hover:null};
+  _drawTree();
+}
+
+function _drawTree(){
+  if(!_vtState)return;
+  const cv=document.getElementById('versionTreeCanvas');
+  const ctx=cv.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const st=_vtState,pos=st.pos,NW=st.NW,NH=st.NH,cw=st.cw,ch=st.ch;
+  const nodes=versionTree.nodes,hov=st.hover;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  // Background
+  ctx.fillStyle='#0a0a12';ctx.fillRect(0,0,cw,ch);
+  // Grid dots
+  ctx.fillStyle='rgba(99,102,241,0.05)';
+  for(let gx=0;gx<cw;gx+=20)for(let gy=0;gy<ch;gy+=20)ctx.fillRect(gx,gy,1,1);
+  // Connections
+  Object.keys(pos).forEach(id=>{
+    const nd=nodes[id];
+    if(nd.parent&&pos[nd.parent]){
+      const pp=pos[nd.parent],cp=pos[id];
+      const hi=id===versionTree.currentNode;
+      ctx.beginPath();ctx.moveTo(pp.cx,pp.y+NH);
+      const mid=(pp.y+NH+cp.y)/2;
+      ctx.bezierCurveTo(pp.cx,mid,cp.cx,mid,cp.cx,cp.y);
+      ctx.strokeStyle=hi?'rgba(99,102,241,0.5)':'rgba(42,42,72,0.7)';
+      ctx.lineWidth=hi?2:1.5;ctx.stroke();
+    }
+  });
+  // Nodes
+  Object.keys(pos).forEach(id=>{
+    const p=pos[id],nd=nodes[id];
+    const cur=id===versionTree.currentNode,ho=hov===id;
+    if(cur){ctx.shadowColor='#6366f1';ctx.shadowBlur=18}
+    ctx.beginPath();_rr(ctx,p.x,p.y,NW,NH,8);
+    ctx.fillStyle=cur?'#1a1a40':ho?'#1c1c38':'#141428';ctx.fill();
+    ctx.strokeStyle=cur?'#6366f1':ho?'#4a4a6c':'#2a2a48';
+    ctx.lineWidth=cur?2:1;ctx.stroke();
+    ctx.shadowBlur=0;
+    // Accent bar at top
+    ctx.beginPath();ctx.moveTo(p.x+8,p.y);ctx.lineTo(p.x+NW-8,p.y);
+    ctx.strokeStyle=cur?'#818cf8':ho?'#6366f1':'#2a2a48';ctx.lineWidth=cur?2:1;ctx.stroke();
+    // Label
+    ctx.textAlign='center';
+    ctx.fillStyle=cur?'#a5b4fc':'#e0e0f0';
+    ctx.font='bold 11px system-ui,sans-serif';
+    const lb=(nd.label||id);ctx.fillText(lb.length>13?lb.slice(0,12)+'…':lb,p.cx,p.y+18);
+    // Instruction
+    const ins=nd.instruction||'';
+    if(ins){
+      ctx.fillStyle=cur?'#8b8bc0':'#5a5a80';
+      ctx.font='9px system-ui,sans-serif';
+      const maxW=NW-16;let shown=ins;
+      if(ctx.measureText(shown).width>maxW){
+        while(shown.length>1&&ctx.measureText(shown+'…').width>maxW)shown=shown.slice(0,-1);
+        shown+='…';
+      }
+      ctx.fillText(shown,p.cx,p.y+34);
+    }
+    // Time
+    const ts=nd.ts||'',tm=ts.match(/T(\d{2}):(\d{2})/);
+    if(tm){ctx.fillStyle='#6868a0';ctx.font='9px system-ui,sans-serif';ctx.fillText(tm[1]+':'+tm[2],p.cx,p.y+50)}
+    // Current indicator
+    if(cur){ctx.fillStyle='#6366f1';ctx.font='bold 8px system-ui,sans-serif';ctx.fillText('● 当前',p.cx,p.y+NH-6)}
+  });
+}
+
+function _rr(ctx,x,y,w,h,r){
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+}
+function initKeyboard(){document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;if(canvas.getActiveObject()?.isEditing)return;const k=e.key.toLowerCase(),ctrl=e.ctrlKey||e.metaKey,shift=e.shiftKey;if(k==='d')setTool('draw');else if(k==='r')setTool('rect');else if(k==='c')setTool('circle');else if(k==='g')setTool('triangle');else if(k==='t')setTool('text');else if(k==='v'&&!ctrl)setTool('select');else if(k==='e')setTool('eraser');else if(k==='l')setTool('line');else if(k==='a')setTool('arrow');else if(k==='z'&&ctrl&&shift){e.preventDefault();redo()}else if(k==='z'&&ctrl){e.preventDefault();if(versionTree?.currentNode&&_getParent(versionTree.currentNode))undoHTML();else undo()}else if(k==='y'&&ctrl){e.preventDefault();if(versionTree?.currentNode&&_getChildren(versionTree.currentNode).length)redoHTML();else redo()}else if(k==='delete'||k==='backspace'){const a=canvas.getActiveObject();if(a&&!a.isEditing){canvas.remove(a);canvas.renderAll()}}})}
+
+// ━━━━━━━━━━ Layout Templates ━━━━━━━━━━
+const LAYOUT_TEMPLATES=[
+  {name:'博客/文章页',desc:'导航 + Hero + 内容 + 侧边栏 + 页脚',shapes:[
+    {t:'rect',l:0,t:0,w:100,h:8,label:'导航栏'},
+    {t:'rect',l:0,t:8,w:100,h:30,label:'英雄区域'},
+    {t:'rect',l:5,t:40,w:60,h:45,label:'内容区域'},
+    {t:'rect',l:68,t:40,w:27,h:45,label:'侧边栏'},
+    {t:'rect',l:0,t:88,w:100,h:12,label:'页脚'}
+  ]},
+  {name:'电商首页',desc:'导航 + Banner + 商品网格 + 推荐 + 页脚',shapes:[
+    {t:'rect',l:0,t:0,w:100,h:7,label:'导航栏'},
+    {t:'rect',l:0,t:7,w:100,h:25,label:'英雄区域'},
+    {t:'rect',l:5,t:35,w:28,h:22,label:'卡片'},{t:'rect',l:36,t:35,w:28,h:22,label:'卡片'},{t:'rect',l:67,t:35,w:28,h:22,label:'卡片'},
+    {t:'rect',l:5,t:60,w:28,h:22,label:'卡片'},{t:'rect',l:36,t:60,w:28,h:22,label:'卡片'},{t:'rect',l:67,t:60,w:28,h:22,label:'卡片'},
+    {t:'rect',l:0,t:85,w:100,h:15,label:'页脚'}
+  ]},
+  {name:'Dashboard',desc:'导航 + 侧边栏 + 卡片网格 + 图表区',shapes:[
+    {t:'rect',l:0,t:0,w:100,h:8,label:'导航栏'},
+    {t:'rect',l:0,t:8,w:18,h:92,label:'侧边栏'},
+    {t:'rect',l:20,t:10,w:25,h:18,label:'卡片'},{t:'rect',l:48,t:10,w:25,h:18,label:'卡片'},{t:'rect',l:75,t:10,w:23,h:18,label:'卡片'},
+    {t:'rect',l:20,t:32,w:52,h:30,label:'内容区域'},
+    {t:'rect',l:75,t:32,w:23,h:30,label:'圆形区域'},
+    {t:'rect',l:20,t:66,w:78,h:30,label:'内容区域'}
+  ]},
+  {name:'登录页',desc:'居中卡片 + 背景装饰',shapes:[
+    {t:'circle',l:30,t:15,w:40,h:50,label:'圆形区域'},
+    {t:'rect',l:30,t:25,w:40,h:45,label:'卡片'}
+  ]},
+  {name:'落地页',desc:'导航 + Hero + 特性 + 价格 + CTA + 页脚',shapes:[
+    {t:'rect',l:0,t:0,w:100,h:7,label:'导航栏'},
+    {t:'rect',l:0,t:7,w:100,h:28,label:'英雄区域'},
+    {t:'rect',l:5,t:38,w:28,h:18,label:'卡片'},{t:'rect',l:36,t:38,w:28,h:18,label:'卡片'},{t:'rect',l:67,t:38,w:28,h:18,label:'卡片'},
+    {t:'rect',l:10,t:60,w:25,h:22,label:'卡片'},{t:'rect',l:38,t:60,w:25,h:22,label:'卡片'},{t:'rect',l:66,t:60,w:25,h:22,label:'卡片'},
+    {t:'rect',l:20,t:85,w:60,h:7,label:'按钮'},
+    {t:'rect',l:0,t:94,w:100,h:6,label:'页脚'}
+  ]},
+  {name:'社交媒体',desc:'导航 + 左侧菜单 + 信息流 + 推荐',shapes:[
+    {t:'rect',l:0,t:0,w:100,h:7,label:'导航栏'},
+    {t:'rect',l:0,t:7,w:18,h:93,label:'侧边栏'},
+    {t:'rect',l:20,t:7,w:52,h:20,label:'搜索栏'},
+    {t:'rect',l:20,t:30,w:52,h:30,label:'内容区域'},
+    {t:'rect',l:20,t:63,w:52,h:35,label:'内容区域'},
+    {t:'rect',l:75,t:7,w:23,h:50,label:'卡片'},
+    {t:'rect',l:75,t:60,w:23,h:38,label:'卡片'}
+  ]},
+  {name:'搜索引擎',desc:'Logo + 搜索框 + 快捷入口',shapes:[
+    {t:'circle',l:42,t:10,w:16,h:12,label:'头像/图标'},
+    {t:'rect',l:20,t:30,w:60,h:8,label:'搜索栏'},
+    {t:'rect',l:15,t:50,w:20,h:15,label:'卡片'},{t:'rect',l:40,t:50,w:20,h:15,label:'卡片'},{t:'rect',l:65,t:50,w:20,h:15,label:'卡片'},
+    {t:'rect',l:0,t:85,w:100,h:15,label:'页脚'}
+  ]},
+  {name:'作品集',desc:'导航 + 项目网格 + 关于 + 页脚',shapes:[
+    {t:'rect',l:0,t:0,w:100,h:8,label:'导航栏'},
+    {t:'rect',l:3,t:10,w:30,h:25,label:'卡片'},{t:'rect',l:35,t:10,w:30,h:25,label:'卡片'},{t:'rect',l:67,t:10,w:30,h:25,label:'卡片'},
+    {t:'rect',l:3,t:38,w:30,h:25,label:'卡片'},{t:'rect',l:35,t:38,w:30,h:25,label:'卡片'},{t:'rect',l:67,t:38,w:30,h:25,label:'卡片'},
+    {t:'rect',l:10,t:68,w:80,h:18,label:'内容区域'},
+    {t:'rect',l:0,t:88,w:100,h:12,label:'页脚'}
+  ]}
+];
+
+// ━━━━━━━━━━ Component Library ━━━━━━━━━━
+const COMPONENTS=[
+  {name:'按钮',icon:'▬',w:10,h:5,label:'按钮'},
+  {name:'输入框',icon:'▭',w:25,h:5,label:'搜索栏'},
+  {name:'卡片',icon:'▭',w:22,h:20,label:'卡片'},
+  {name:'导航栏',icon:'▬',w:100,h:7,label:'导航栏'},
+  {name:'侧边栏',icon:'▮',w:18,h:60,label:'侧边栏'},
+  {name:'Hero',icon:'▬',w:100,h:30,label:'英雄区域'},
+  {name:'页脚',icon:'▬',w:100,h:10,label:'页脚'},
+  {name:'头像',icon:'●',w:6,h:8,label:'头像/图标',isCircle:true},
+  {name:'图标',icon:'▲',w:6,h:6,label:'指示/图标',isTriangle:true}
+];
+
+let componentDrawerOpen=false;
+function toggleComponentDrawer(){
+  componentDrawerOpen=!componentDrawerOpen;
+  document.getElementById('componentDrawer').style.width=componentDrawerOpen?'120px':'0';
+}
+function initComponentDrawer(){
+  const list=document.getElementById('componentList');
+  COMPONENTS.forEach(comp=>{
+    const item=document.createElement('div');
+    item.draggable=true;
+    item.style.cssText='padding:6px 8px;margin-bottom:3px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);cursor:grab;font-size:11px;color:var(--text);display:flex;align-items:center;gap:6px;transition:border-color .15s';
+    item.innerHTML=`<span style="font-size:13px;opacity:.7">${comp.icon}</span>${comp.name}`;
+    item.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',JSON.stringify(comp));e.dataTransfer.effectAllowed='copy'});
+    item.addEventListener('mouseenter',()=>item.style.borderColor='var(--accent)');
+    item.addEventListener('mouseleave',()=>item.style.borderColor='var(--border)');
+    list.appendChild(item);
+  });
+  // Drop zone = canvas wrapper
+  const wrap=document.getElementById('canvasWrap');
+  wrap.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='copy'});
+  wrap.addEventListener('drop',e=>{
+    e.preventDefault();
+    let data;try{data=JSON.parse(e.dataTransfer.getData('text/plain'))}catch{return};
+    const rect=wrap.getBoundingClientRect();
+    const x=e.clientX-rect.left,y=e.clientY-rect.top;
+    const cw=canvas.getWidth(),ch=canvas.getHeight();
+    const w=comp.w/100*cw,h=comp.h/100*ch;
+    const left=x-w/2,top=y-h/2;
+    let obj;
+    const comp=data;
+    const sw=comp.w/100*cw,sh=comp.h/100*ch;
+    const sl=x-sw/2,st=y-sh/2;
+    if(comp.isCircle)obj=new fabric.Ellipse({...SHAPE_STYLE,left:sl,top:st,rx:sw/2,ry:sh/2});
+    else if(comp.isTriangle)obj=new fabric.Triangle({...SHAPE_STYLE,left:sl,top:st,width:sw,height:sh});
+    else obj=new fabric.Rect({...SHAPE_STYLE,left:sl,top:st,width:sw,height:sh});
+    obj._uiLabel=comp.label;obj.set({selectable:true,evented:true});
+    canvas.add(obj);canvas.renderAll();autoLabel(obj);
+    toast('info',`已添加「${comp.name}」`);
+  });
+}
+
+function openTemplateLib(){
+  const list=document.getElementById('templateLibList');list.innerHTML='';
+  document.getElementById('templateLibModal').classList.add('visible');
+  LAYOUT_TEMPLATES.forEach(tpl=>{
+    const card=document.createElement('div');
+    card.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;cursor:pointer;transition:border-color .15s';
+    card.onmouseenter=()=>card.style.borderColor='var(--accent)';
+    card.onmouseleave=()=>card.style.borderColor='var(--border)';
+    card.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:4px">${tpl.name}</div><div style="font-size:10px;color:var(--text2);line-height:1.4">${tpl.desc}</div>`;
+    card.addEventListener('click',()=>{loadTemplate(tpl);document.getElementById('templateLibModal').classList.remove('visible')});
+    list.appendChild(card);
+  });
+}
+
+function loadTemplate(tpl){
+  if(canvas.getObjects().filter(o=>o.type!=='path').length){if(!confirm('加载模板将清空当前画布，继续？'))return}
+  canvas.clear();canvas.backgroundColor='#fff';
+  const cw=canvas.getWidth(),ch=canvas.getHeight();
+  tpl.shapes.forEach(s=>{
+    let obj;
+    const left=s.l/100*cw,top=s.t/100*ch,width=s.w/100*cw,height=s.h/100*ch;
+    if(s.t==='circle')obj=new fabric.Ellipse({...SHAPE_STYLE,left,top,rx:width/2,ry:height/2});
+    else if(s.t==='triangle')obj=new fabric.Triangle({...SHAPE_STYLE,left,top,width,height});
+    else obj=new fabric.Rect({...SHAPE_STYLE,left,top,width,height});
+    obj._uiLabel=s.label;obj.set({selectable:true,evented:true});
+    canvas.add(obj);
+  });
+  canvas.renderAll();undoStack=[];redoStack=[];renderLayerPanel();
+  toast('success',`已加载模板「${tpl.name}」`);
+}
+
+// ━━━━━━━━━━ Property Panel ━━━━━━━━━━
+function updatePropPanel(){
+  const obj=canvas.getActiveObject();
+  const panel=document.getElementById('propPanel');
+  if(!obj||!obj._uiLabel||obj.type==='path'||obj.type==='activeSelection'){panel.classList.remove('visible');return}
+  const cw=canvas.getWidth(),ch=canvas.getHeight();
+  const b=obj.getBoundingRect();
+  document.getElementById('propLeft').value=(b.left/cw*100).toFixed(1);
+  document.getElementById('propTop').value=(b.top/ch*100).toFixed(1);
+  document.getElementById('propWidth').value=(b.width/cw*100).toFixed(1);
+  document.getElementById('propHeight').value=(b.height/ch*100).toFixed(1);
+  const sel=document.getElementById('propLabel');
+  const label=obj._uiLabel||'';
+  const opt=Array.from(sel.options).find(o=>o.value===label);
+  if(opt)sel.value=label;else{sel.value='';sel.querySelector('[value=""]').textContent=label}
+  panel.classList.add('visible');
+}
+function hidePropPanel(){document.getElementById('propPanel').classList.remove('visible')}
+
+// ━━━━━━━━━━ Layer Panel ━━━━━━━━━━
+const LAYER_ICONS={rect:'▬',ellipse:'●',triangle:'▲',line:'╱',group:'⬡',textbox:'T','i-text':'T'};
+function renderLayerPanel(){
+  const panel=document.getElementById('layerPanel');if(!panel||!panel.classList.contains('open'))return;
+  const objs=canvas.getObjects().filter(o=>o.type!=='path');
+  const active=canvas.getActiveObject();
+  const countEl=document.getElementById('layerCount');if(countEl)countEl.textContent=objs.length;
+  panel.innerHTML='';
+  if(!objs.length){panel.innerHTML='<div style="padding:8px 12px;font-size:11px;color:var(--text2)">暂无图层</div>';return}
+  // Show in reverse order (top layer first)
+  for(let i=objs.length-1;i>=0;i--){
+    const o=objs[i];const isActive=o===active;
+    const icon=LAYER_ICONS[o.type]||'■';
+    const label=o._uiLabel||o.type;
+    const item=document.createElement('div');
+    item.className='layer-item'+(isActive?' active':'');
+    item.innerHTML=`<span class="layer-icon">${icon}</span><span class="layer-name">${label}</span><button class="layer-btn layer-vis" title="${o.visible?'隐藏':'显示'}">${o.visible?'👁':'🚫'}</button><button class="layer-btn layer-del" title="删除">✕</button>`;
+    item.addEventListener('click',e=>{
+      if(e.target.closest('.layer-vis')){o.visible=!o.visible;canvas.renderAll();renderLayerPanel();return}
+      if(e.target.closest('.layer-del')){canvas.remove(o);canvas.renderAll();return}
+      canvas.setActiveObject(o);canvas.renderAll();renderLayerPanel();
+    });
+    panel.appendChild(item);
+  }
+}
+
+// ━━━━━━━━━━ Sketch Save/Load ━━━━━━━━━━
+function saveSketch(){
+  const objs=canvas.getObjects().filter(o=>o.type!=='path');
+  if(!objs.length){toast('error','画布为空，无法保存');return}
+  const name=prompt('草图名称：','草图 '+new Date().toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}));
+  if(!name||!name.trim())return;
+  const data=JSON.stringify(canvas.toJSON(['_uiLabel']));
+  const thumb=canvas.toDataURL({format:'png',quality:.3,width:200,height:150});
+  fetch('/api/sketches/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),data,thumbnail:thumb})})
+  .then(r=>r.json()).then(d=>{if(d.ok)toast('success',`草图「${name.trim()}」已保存`);else toast('error',d.error||'保存失败')}).catch(()=>toast('error','保存失败'));
+}
+function openSketchModal(){
+  const list=document.getElementById('sketchList');
+  list.innerHTML='<div style="color:var(--text2);font-size:12px;text-align:center;padding:20px">加载中...</div>';
+  document.getElementById('sketchModal').classList.add('visible');
+  fetch('/api/sketches').then(r=>r.json()).then(d=>{
+    if(!d.sketches||!d.sketches.length){list.innerHTML='<div style="color:var(--text2);font-size:12px;text-align:center;padding:20px">暂无保存的草图</div>';return}
+    list.innerHTML='';
+    d.sketches.forEach(s=>{
+      const item=document.createElement('div');
+      item.style.cssText='display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--radius);cursor:pointer;transition:background .15s;border:1px solid var(--border);margin-bottom:6px';
+      item.onmouseenter=()=>item.style.background='var(--surface)';
+      item.onmouseleave=()=>item.style.background='transparent';
+      item.innerHTML=`${s.thumbnail?'<img src="'+s.thumbnail+'" style="width:60px;height:45px;object-fit:cover;border-radius:4px;border:1px solid var(--border)">':''}<div style="flex:1;min-width:0"><div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div><div style="font-size:10px;color:var(--text2);margin-top:2px">${s.timestamp?new Date(s.timestamp).toLocaleString('zh-CN'):''}</div></div><button class="icon-btn sketch-del" data-f="${s.filename}" title="删除" style="font-size:13px">🗑</button>`;
+      item.querySelector('.sketch-del').addEventListener('click',e=>{e.stopPropagation();if(!confirm('删除该草图？'))return;fetch('/api/sketches/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:s.filename})}).then(()=>openSketchModal())});
+      item.addEventListener('click',e=>{if(e.target.closest('.sketch-del'))return;loadSketch(s.filename)});
+      list.appendChild(item);
+    });
+  }).catch(()=>{list.innerHTML='<div style="color:var(--error);font-size:12px;text-align:center;padding:20px">加载失败</div>'});
+}
+function loadSketch(filename){
+  fetch('/api/sketches/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})})
+  .then(r=>r.json()).then(d=>{
+    if(!d.ok){toast('error',d.error||'加载失败');return}
+    undoSuspend=true;
+    canvas.loadFromJSON(d.data,()=>{
+      canvas.renderAll();undoSuspend=false;undoStack=[];redoStack=[];
+      // Re-set path objects as non-interactive
+      canvas.forEachObject(o=>{if(o.type==='path'){o.selectable=false;o.evented=false}});
+      document.getElementById('sketchModal').classList.remove('visible');
+      toast('success',`已加载「${d.name}」`);
+    });
+  }).catch(()=>toast('error','加载失败'));
+}
 
 function setS(t,m){document.getElementById('statusDot').className='status-dot'+(t?` ${t}`:'');document.getElementById('statusMsg').textContent=m}
 function toast(t,m){const c=document.getElementById('toastContainer'),el=document.createElement('div');el.className=`toast ${t}`;el.textContent=m;c.appendChild(el);setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),300)},3000)}
