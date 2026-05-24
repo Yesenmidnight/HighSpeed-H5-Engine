@@ -279,8 +279,9 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 <div class="modal-overlay" id="settingsModal">
   <div class="modal">
     <h3>API 设置</h3>
-    <div class="form-group"><label>端点</label><input type="text" id="apiEndpoint" placeholder="/api/messages"></div>
-    <div class="form-group"><label>模型</label><input type="text" id="apiModel" placeholder="glm-5.1-highspeed"></div>
+    <div class="form-group"><label>服务商</label><select id="apiProvider" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--radius);font-size:12px;outline:none"></select></div>
+    <div class="form-group"><label>端点</label><input type="text" id="apiEndpoint" placeholder="https://..."></div>
+    <div class="form-group"><label>模型</label><input type="text" id="apiModel" placeholder="model-name"></div>
     <div class="form-group"><label>API Key</label><input type="password" id="apiKey" placeholder="输入你的 API Key"></div>
     <div class="form-group"><label>Temperature <span id="tempVal" style="float:right;color:var(--accent)">0.5</span></label><input type="range" id="apiTemp" min="0" max="1" step="0.05" value="0.5" style="width:100%"></div>
     <div class="form-group"><label>Max Tokens <span id="tokensVal" style="float:right;color:var(--accent)">8192</span></label><input type="range" id="apiTokens" min="1024" max="16384" step="1024" value="8192" style="width:100%"></div>
@@ -340,10 +341,11 @@ const THEMES={
 // ━━━━━━━━━━ Config ━━━━━━━━━━
 const _ep=localStorage.getItem('s2u_endpoint');
 if(_ep&&_ep.startsWith('http'))localStorage.removeItem('s2u_endpoint');
-const CONFIG={endpoint:'/api/messages',model:'glm-5.1-highspeed',apiKey:'',style:localStorage.getItem('s2u_style')||'modern',styleCustom:localStorage.getItem('s2u_stylecustom')||'',template:localStorage.getItem('s2u_template')||'full',temperature:parseFloat(localStorage.getItem('s2u_temp')||'0.5'),maxTokens:parseInt(localStorage.getItem('s2u_tokens')||'8192')};
+const CONFIG={endpoint:'/api/messages',model:'glm-5.1-highspeed',apiKey:'',provider:'zhipu',style:localStorage.getItem('s2u_style')||'modern',styleCustom:localStorage.getItem('s2u_stylecustom')||'',template:localStorage.getItem('s2u_template')||'full',temperature:parseFloat(localStorage.getItem('s2u_temp')||'0.5'),maxTokens:parseInt(localStorage.getItem('s2u_tokens')||'8192')};
+let PROVIDER_LIST=[];
 
 // Load cached API config from server on startup
-(async()=>{try{const r=await fetch('/api/cache');if(r.ok){const d=await r.json();if(d.apiKey)CONFIG.apiKey=d.apiKey;if(d.model)CONFIG.model=d.model;if(d.endpoint)CONFIG.endpoint=d.endpoint;document.getElementById('apiKey').value=CONFIG.apiKey;document.getElementById('apiModel').value=CONFIG.model;document.getElementById('apiEndpoint').value=CONFIG.endpoint}}catch(e){}})();
+(async()=>{try{const[r,p]=await Promise.all([fetch('/api/cache'),fetch('/api/providers')]);if(p.ok)PROVIDER_LIST=await p.json();if(r.ok){const d=await r.json();if(d.apiKey)CONFIG.apiKey=d.apiKey;if(d.model)CONFIG.model=d.model;if(d.endpoint)CONFIG.endpoint=d.endpoint;if(d.provider)CONFIG.provider=d.provider;document.getElementById('apiKey').value=CONFIG.apiKey;document.getElementById('apiModel').value=CONFIG.model;document.getElementById('apiEndpoint').value=CONFIG.endpoint}}catch(e){}})();
 
 const GRID_COLS=12,GRID_ROWS=8;
 let canvas,generating=false,currentTool='draw',isDrawing=false,shapeStart=null,tempShape=null,gridVisible=true,abortCtrl=null;
@@ -772,7 +774,7 @@ ${tpl.extra}
 10. 每个布局区域必须用 <section> 标签包裹，格式为：<section id="region-N" data-label="标签名">，N 从 1 开始按从上到下从左到右的顺序编号`;
 
   try{
-    const resp=await fetch(CONFIG.endpoint,{
+    const resp=await fetch('/api/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':CONFIG.apiKey,'anthropic-version':'2023-06-01'},
       signal:abortCtrl.signal,
@@ -1081,7 +1083,7 @@ async function iterateBeautify(regionId,instruction){
       userContent=`当前页面代码：\n${lastGenHTML}\n\n用户修改指令：${instruction}${layoutNote}`;
     }
 
-    const resp=await fetch(CONFIG.endpoint,{
+    const resp=await fetch('/api/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':CONFIG.apiKey,'anthropic-version':'2023-06-01'},
       signal:abortCtrl.signal,
@@ -1182,24 +1184,37 @@ async function downloadProject(){
 
 function initSettings(){
   document.getElementById('settingsBtn').addEventListener('click',openSettings);document.getElementById('cancelSettings').addEventListener('click',closeSettings);document.getElementById('saveSettings').addEventListener('click',saveSettings);document.getElementById('settingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSettings()});
-  document.getElementById('apiEndpoint').value=CONFIG.endpoint;document.getElementById('apiModel').value=CONFIG.model;document.getElementById('apiKey').value=CONFIG.apiKey;
-  document.getElementById('apiTemp').value=CONFIG.temperature;document.getElementById('tempVal').textContent=CONFIG.temperature;
-  document.getElementById('apiTokens').value=CONFIG.maxTokens;document.getElementById('tokensVal').textContent=CONFIG.maxTokens;
   document.getElementById('apiTemp').addEventListener('input',e=>{document.getElementById('tempVal').textContent=e.target.value});
   document.getElementById('apiTokens').addEventListener('input',e=>{document.getElementById('tokensVal').textContent=e.target.value});
   document.getElementById('templateSelect').value=CONFIG.template;
   document.getElementById('templateSelect').addEventListener('change',e=>{CONFIG.template=e.target.value;localStorage.setItem('s2u_template',e.target.value)});
 }
-function openSettings(){document.getElementById('settingsModal').classList.add('visible')}
+function openSettings(){
+  const sel=document.getElementById('apiProvider');
+  sel.innerHTML='';
+  (PROVIDER_LIST.length?PROVIDER_LIST:[{id:'zhipu',name:'智谱 AI'}]).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o)});
+  sel.value=CONFIG.provider||'zhipu';
+  sel.onchange=()=>{
+    const pv=PROVIDER_LIST.find(p=>p.id===sel.value);
+    if(pv){document.getElementById('apiEndpoint').value=pv.endpoint;document.getElementById('apiModel').value=pv.default_model}
+  };
+  document.getElementById('apiEndpoint').value=CONFIG.endpoint;
+  document.getElementById('apiModel').value=CONFIG.model;
+  document.getElementById('apiKey').value=CONFIG.apiKey;
+  document.getElementById('apiTemp').value=CONFIG.temperature;document.getElementById('tempVal').textContent=CONFIG.temperature;
+  document.getElementById('apiTokens').value=CONFIG.maxTokens;document.getElementById('tokensVal').textContent=CONFIG.maxTokens;
+  document.getElementById('settingsModal').classList.add('visible');
+}
 function closeSettings(){document.getElementById('settingsModal').classList.remove('visible')}
 function saveSettings(){
+  CONFIG.provider=document.getElementById('apiProvider').value||'zhipu';
   CONFIG.apiKey=document.getElementById('apiKey').value.trim();
   CONFIG.model=document.getElementById('apiModel').value.trim()||CONFIG.model;
   CONFIG.endpoint=document.getElementById('apiEndpoint').value.trim()||CONFIG.endpoint;
   CONFIG.temperature=parseFloat(document.getElementById('apiTemp').value);
   CONFIG.maxTokens=parseInt(document.getElementById('apiTokens').value);
   localStorage.setItem('s2u_temp',CONFIG.temperature);localStorage.setItem('s2u_tokens',CONFIG.maxTokens);
-  fetch('/api/cache',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:CONFIG.apiKey,model:CONFIG.model,endpoint:CONFIG.endpoint,temperature:CONFIG.temperature,maxTokens:CONFIG.maxTokens})}).catch(()=>{});
+  fetch('/api/cache',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:CONFIG.provider,apiKey:CONFIG.apiKey,model:CONFIG.model,endpoint:CONFIG.endpoint,temperature:CONFIG.temperature,maxTokens:CONFIG.maxTokens})}).catch(()=>{});
   closeSettings();if(CONFIG.apiKey)toast('success','设置已保存');else toast('error','未输入 API Key');
 }
 function saveSnapshot(){if(undoStack.length>=50)undoStack.shift();undoStack.push(canvas.toJSON(['_uiLabel']));redoStack=[]}

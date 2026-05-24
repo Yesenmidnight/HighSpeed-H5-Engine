@@ -10,10 +10,153 @@ from urllib.parse import urlparse, parse_qs
 
 PORT = 9090
 STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
-API_TARGET = "https://open.bigmodel.cn/api/anthropic/v1/messages"
 KEY_FILE = os.path.join(STATIC_DIR, ".api_key_cache")
 PROJECTS_DIR = os.path.join(STATIC_DIR, "projects")
 SKETCHES_DIR = os.path.join(STATIC_DIR, "sketches")
+
+PROVIDERS = {
+    "zhipu": {
+        "name": "智谱 AI",
+        "endpoint": "https://open.bigmodel.cn/api/anthropic/v1/messages",
+        "format": "anthropic",
+        "default_model": "glm-5.1-highspeed",
+        "auth_header": "x-api-key",
+        "auth_prefix": "",
+        "extra_headers": {"anthropic-version": "2023-06-01"},
+    },
+    "openai": {
+        "name": "OpenAI",
+        "endpoint": "https://api.openai.com/v1/chat/completions",
+        "format": "openai",
+        "default_model": "gpt-4o",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "extra_headers": {},
+    },
+    "deepseek": {
+        "name": "DeepSeek",
+        "endpoint": "https://api.deepseek.com/v1/chat/completions",
+        "format": "openai",
+        "default_model": "deepseek-chat",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "extra_headers": {},
+    },
+    "anthropic": {
+        "name": "Anthropic Claude",
+        "endpoint": "https://api.anthropic.com/v1/messages",
+        "format": "anthropic",
+        "default_model": "claude-sonnet-4-20250514",
+        "auth_header": "x-api-key",
+        "auth_prefix": "",
+        "extra_headers": {"anthropic-version": "2023-06-01"},
+    },
+    "qwen": {
+        "name": "通义千问",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+        "format": "openai",
+        "default_model": "qwen-plus",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "extra_headers": {},
+    },
+    "moonshot": {
+        "name": "月之暗面 Kimi",
+        "endpoint": "https://api.moonshot.cn/v1/chat/completions",
+        "format": "openai",
+        "default_model": "moonshot-v1-8k",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "extra_headers": {},
+    },
+    "siliconflow": {
+        "name": "硅基流动",
+        "endpoint": "https://api.siliconflow.cn/v1/chat/completions",
+        "format": "openai",
+        "default_model": "Pro/deepseek-ai/DeepSeek-V3",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "extra_headers": {},
+    },
+    "custom": {
+        "name": "自定义",
+        "endpoint": "",
+        "format": "openai",
+        "default_model": "",
+        "auth_header": "Authorization",
+        "auth_prefix": "Bearer ",
+        "extra_headers": {},
+    },
+}
+
+
+def _anthropic_to_openai(body):
+    """Convert Anthropic-format request body to OpenAI format."""
+    messages = []
+    system = body.get("system", "")
+    if system:
+        messages.append({"role": "system", "content": system})
+    for msg in body.get("messages", []):
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if part.get("type") == "text":
+                    parts.append({"type": "text", "text": part.get("text", "")})
+                elif part.get("type") == "image":
+                    src = part.get("source", {})
+                    media_type = src.get("media_type", "image/png")
+                    data = src.get("data", "")
+                    parts.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{media_type};base64,{data}"},
+                    })
+            messages.append({"role": msg["role"], "content": parts})
+        else:
+            messages.append({"role": msg["role"], "content": content})
+    result = {
+        "model": body.get("model", ""),
+        "messages": messages,
+        "max_tokens": body.get("max_tokens", 4096),
+        "stream": body.get("stream", False),
+        "temperature": body.get("temperature", 0.5),
+    }
+    return result
+
+
+def _openai_to_anthropic_chunk(line):
+    """Convert one OpenAI SSE data line to an Anthropic content_block_delta event."""
+    if not line.startswith("data:"):
+        return None
+    payload = line[5:].strip()
+    if payload == "[DONE]":
+        return None
+    try:
+        obj = json.loads(payload)
+        delta = obj.get("choices", [{}])[0].get("delta", {})
+        text = delta.get("content", "")
+        if text:
+            return json.dumps({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": text},
+            })
+    except Exception:
+        pass
+    return None
+
+
+def _get_provider_config():
+    """Return provider config from cache, defaulting to zhipu."""
+    cache = _read_cache()
+    pid = cache.get("provider", "zhipu")
+    cfg = PROVIDERS.get(pid, PROVIDERS["zhipu"]).copy()
+    # Allow user overrides for endpoint and model
+    if cache.get("endpoint") and cache["endpoint"] != "/api/messages":
+        cfg["endpoint"] = cache["endpoint"]
+    if cache.get("model"):
+        cfg["model"] = cache["model"]
+    return pid, cfg
 
 
 def _read_cache():
@@ -36,6 +179,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/cache":
             self._send_cache()
+        elif self.path == "/api/providers":
+            self._send_providers()
         elif self.path.startswith("/api/versions/tree"):
             self._version_tree()
         elif self.path.startswith("/api/versions/load"):
@@ -66,35 +211,50 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _proxy_api(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length else b""
+        body_json = json.loads(body) if body else {}
+
+        # Read API key from client header, fall back to cache
+        api_key = self.headers.get("x-api-key", "")
+        if not api_key:
+            api_key = _read_cache().get("apiKey", "")
+
+        pid, pcfg = _get_provider_config()
+        is_stream = body_json.get("stream", False)
+        target_fmt = pcfg["format"]
+
+        # Build target request body
+        if target_fmt == "openai":
+            target_body = json.dumps(_anthropic_to_openai(body_json)).encode()
+        else:
+            target_body = body
+
+        # Build target URL and headers
+        target_url = pcfg["endpoint"]
+        headers = {"Content-Type": "application/json"}
+        auth_val = pcfg["auth_prefix"] + api_key if api_key else ""
+        if auth_val:
+            headers[pcfg["auth_header"]] = auth_val
+        for k, v in pcfg.get("extra_headers", {}).items():
+            headers[k] = v
 
         req = urllib.request.Request(
-            API_TARGET,
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-            },
+            target_url,
+            data=target_body,
+            headers=headers,
             method="POST",
         )
 
-        # Forward x-api-key and anthropic-version from client
-        for hdr in ("x-api-key", "anthropic-version"):
-            val = self.headers.get(hdr)
-            if val:
-                req.add_header(hdr, val)
-
         try:
             with urllib.request.urlopen(req) as resp:
-                is_stream = self._is_streaming(body)
-
                 if is_stream:
-                    self._stream_response(resp)
+                    self._stream_response(resp, target_fmt)
                 else:
-                    data = resp.read()
+                    if target_fmt == "openai":
+                        data = self._convert_openai_response(resp.read())
+                    else:
+                        data = resp.read()
                     self.send_response(resp.status)
-                    for hdr in ("content-type",):
-                        v = resp.getheader(hdr)
-                        if v:
-                            self.send_header(hdr, v)
+                    self.send_header("Content-Type", "application/json")
                     self.send_header("Access-Control-Allow-Origin", "*")
                     self.end_headers()
                     self.wfile.write(data)
@@ -112,13 +272,40 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(str(e).encode())
 
+    def _convert_openai_response(self, raw):
+        """Convert non-streaming OpenAI response to Anthropic format."""
+        try:
+            obj = json.loads(raw)
+            text = obj.get("choices", [{}])[0].get("message", {}).get("content", "")
+            result = {
+                "type": "message",
+                "content": [{"type": "text", "text": text}],
+                "model": obj.get("model", ""),
+                "stop_reason": obj.get("choices", [{}])[0].get("finish_reason", "end_turn"),
+            }
+            return json.dumps(result).encode()
+        except Exception:
+            return raw
+
+    def _send_providers(self):
+        result = []
+        for pid, cfg in PROVIDERS.items():
+            result.append({
+                "id": pid,
+                "name": cfg["name"],
+                "format": cfg["format"],
+                "endpoint": cfg["endpoint"],
+                "default_model": cfg["default_model"],
+            })
+        self._json_response(200, result)
+
     def _is_streaming(self, body):
         try:
             return json.loads(body).get("stream", False)
         except Exception:
             return False
 
-    def _stream_response(self, resp):
+    def _stream_response(self, resp, source_fmt="anthropic"):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -130,15 +317,31 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             chunk = resp.read(4096)
             if not chunk:
                 if remainder:
-                    self.wfile.write(remainder)
+                    if source_fmt == "openai":
+                        self._flush_openai_chunk(remainder)
+                    else:
+                        self.wfile.write(remainder)
                     self.wfile.flush()
                 break
             data = remainder + chunk
             lines = data.split(b"\n")
             remainder = lines[-1]
             for line in lines[:-1]:
-                self.wfile.write(line + b"\n")
+                decoded = line.decode("utf-8", errors="replace").rstrip("\r")
+                if source_fmt == "openai":
+                    converted = _openai_to_anthropic_chunk(decoded)
+                    if converted:
+                        self.wfile.write(f"data: {converted}\n\n".encode())
+                else:
+                    self.wfile.write(line + b"\n")
             self.wfile.flush()
+
+    def _flush_openai_chunk(self, data):
+        """Flush remaining OpenAI SSE data."""
+        decoded = data.decode("utf-8", errors="replace").rstrip("\r")
+        converted = _openai_to_anthropic_chunk(decoded)
+        if converted:
+            self.wfile.write(f"data: {converted}\n\n".encode())
 
     def _send_cache(self):
         data = _read_cache()
@@ -351,12 +554,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, x-api-key, anthropic-version")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, x-api-key, anthropic-version, Authorization")
         self.end_headers()
 
 
 if __name__ == "__main__":
     with http.server.HTTPServer(("0.0.0.0", PORT), ProxyHandler) as httpd:
         print(f"Serving on http://localhost:{PORT}")
-        print(f"API proxy: /api/messages -> {API_TARGET}")
+        print(f"Supported providers: {', '.join(p['name'] for p in PROVIDERS.values())}")
         httpd.serve_forever()
